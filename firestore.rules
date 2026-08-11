@@ -21,14 +21,34 @@ service cloud.firestore {
 
     match /epics/{epicId} {
       allow read, write: if isMember();
+
+      match /discussions/{discussionId} {
+        allow read, write: if isMember();
+      }
     }
 
     match /pbis/{pbiId} {
       allow read, write: if isMember();
+
+      match /discussions/{discussionId} {
+        allow read, write: if isMember();
+      }
     }
 
     match /tasks/{taskId} {
       allow read, write: if isMember();
+
+      match /discussions/{discussionId} {
+        allow read, write: if isMember();
+      }
+    }
+
+    match /leads/{leadId} {
+      allow read, write: if isMember();
+
+      match /discussions/{discussionId} {
+        allow read, write: if isMember();
+      }
     }
 
     match /financeMonths/{monthId} {

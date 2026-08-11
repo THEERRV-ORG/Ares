@@ -8,6 +8,9 @@ import { ChevronRight, Layers, Loader2, Pencil, Plus, Trash2, X } from "lucide-r
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { useConfirmDialog } from "@/components/confirm-dialog";
+import { AssigneeMultiSelect, AssigneeSelect } from "@/components/assignee-picker";
+import { AssigneeBadges } from "@/components/assignee-badges";
+import { DiscussionThread } from "@/components/discussion-thread";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useDbDoc, useDbList } from "@/lib/use-db";
@@ -19,6 +22,7 @@ import {
   type Epic,
   type Pbi,
   type PbiPriority,
+  type UserProfile,
 } from "@/lib/board-types";
 
 export default function EpicDetailPage() {
@@ -30,11 +34,13 @@ export default function EpicDetailPage() {
   const epic = useDbDoc<Omit<Epic, "id">>(`epics/${epicId}`);
   const allPbis = useDbList<Pbi>("pbis", (a, b) => b.createdAt - a.createdAt);
   const pbis = allPbis.filter((p) => p.epicId === epicId);
+  const users = useDbList<UserProfile & { id: string }>("users");
 
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
-  const [editStatus, setEditStatus] = useState<BoardStatus>("Approved");
+  const [editStatus, setEditStatus] = useState<BoardStatus>("Not Started");
+  const [editAssignees, setEditAssignees] = useState<string[]>([]);
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -43,14 +49,16 @@ export default function EpicDetailPage() {
   const [newPbiTitle, setNewPbiTitle] = useState("");
   const [newPbiDescription, setNewPbiDescription] = useState("");
   const [newPbiPriority, setNewPbiPriority] = useState<PbiPriority>("Medium");
-  const [newPbiStatus, setNewPbiStatus] = useState<BoardStatus>("Approved");
+  const [newPbiStatus, setNewPbiStatus] = useState<BoardStatus>("Not Started");
+  const [newPbiAssignee, setNewPbiAssignee] = useState("");
   const [isAddingPbi, setIsAddingPbi] = useState(false);
 
   function startEditing() {
     if (!epic) return;
     setEditTitle(epic.title);
     setEditDescription(epic.description);
-    setEditStatus(epic.status ?? "Approved");
+    setEditStatus(epic.status ?? "Not Started");
+    setEditAssignees(epic.assignees ?? []);
     setIsEditing(true);
   }
 
@@ -62,6 +70,7 @@ export default function EpicDetailPage() {
         title: editTitle,
         description: editDescription,
         status: editStatus,
+        assignees: editAssignees,
       });
       setIsEditing(false);
     } catch (err) {
@@ -114,13 +123,15 @@ export default function EpicDetailPage() {
         description: newPbiDescription,
         priority: newPbiPriority,
         status: newPbiStatus,
+        assignee: newPbiAssignee || null,
         createdBy: user?.email ?? null,
         createdAt: Date.now(),
       });
       setNewPbiTitle("");
       setNewPbiDescription("");
       setNewPbiPriority("Medium");
-      setNewPbiStatus("Approved");
+      setNewPbiStatus("Not Started");
+      setNewPbiAssignee("");
       setShowAddPbi(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add PBI");
@@ -182,6 +193,7 @@ export default function EpicDetailPage() {
                       </option>
                     ))}
                   </select>
+                  <AssigneeMultiSelect users={users} value={editAssignees} onChange={setEditAssignees} />
                   <div className="flex gap-2">
                     <button
                       onClick={saveEdit}
@@ -206,10 +218,11 @@ export default function EpicDetailPage() {
                     <div>
                       <h1 className="text-2xl font-semibold text-white">{epic.title}</h1>
                       <span
-                        className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs ${BOARD_STATUS_STYLES[epic.status ?? "Approved"]}`}
+                        className={`mt-2 inline-block rounded-full px-2 py-0.5 text-xs ${BOARD_STATUS_STYLES[epic.status ?? "Not Started"]}`}
                       >
-                        {epic.status ?? "Approved"}
+                        {epic.status ?? "Not Started"}
                       </span>
+                      <AssigneeBadges names={epic.assignees ?? []} />
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <button
@@ -236,21 +249,25 @@ export default function EpicDetailPage() {
                   <p className="text-white/60">{epic.description}</p>
                 </div>
               )}
+
+              <div className="mt-6 border-t border-white/10 pt-5">
+                <DiscussionThread path={`epics/${epicId}/discussions`} />
+              </div>
             </div>
 
             {error && <p className="text-sm text-red-400">{error}</p>}
 
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-medium text-white/70">
+                <h2 className="text-lg font-semibold text-white/90">
                   PBIs {pbis.length > 0 && `(${pbis.length})`}
                 </h2>
                 <button
                   onClick={() => setShowAddPbi((v) => !v)}
                   title={showAddPbi ? "Close" : "Add PBI"}
-                  className="rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-orange-400"
+                  className="rounded-lg p-1.5 text-white transition-colors hover:bg-white/10 hover:text-orange-400"
                 >
-                  {showAddPbi ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  {showAddPbi ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
                 </button>
               </div>
 
@@ -275,6 +292,7 @@ export default function EpicDetailPage() {
                     {pbi.description && (
                       <p className="mt-1 truncate text-sm text-white/50">{pbi.description}</p>
                     )}
+                    <AssigneeBadges names={pbi.assignee ? [pbi.assignee] : []} />
                   </div>
                   <ChevronRight className="h-4 w-4 shrink-0 text-white/30" />
                 </Link>
@@ -318,6 +336,7 @@ export default function EpicDetailPage() {
                       </option>
                     ))}
                   </select>
+                  <AssigneeSelect users={users} value={newPbiAssignee} onChange={setNewPbiAssignee} />
                   <button
                     onClick={addPbi}
                     disabled={!newPbiTitle.trim() || isAddingPbi}
