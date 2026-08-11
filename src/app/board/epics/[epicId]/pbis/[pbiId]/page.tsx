@@ -4,10 +4,13 @@ import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { addDoc, collection, deleteDoc, doc, updateDoc, writeBatch } from "firebase/firestore";
-import { FileText, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ChevronDown, ChevronUp, FileText, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { useConfirmDialog } from "@/components/confirm-dialog";
+import { AssigneeSelect } from "@/components/assignee-picker";
+import { AssigneeBadges } from "@/components/assignee-badges";
+import { DiscussionThread } from "@/components/discussion-thread";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useDbDoc, useDbList } from "@/lib/use-db";
@@ -37,7 +40,8 @@ export default function PbiDetailPage() {
   const [editTitle, setEditTitle] = useState("");
   const [editDescription, setEditDescription] = useState("");
   const [editPriority, setEditPriority] = useState<PbiPriority>("Medium");
-  const [editStatus, setEditStatus] = useState<BoardStatus>("Approved");
+  const [editStatus, setEditStatus] = useState<BoardStatus>("Not Started");
+  const [editAssignee, setEditAssignee] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,17 +50,19 @@ export default function PbiDetailPage() {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskAssignee, setNewTaskAssignee] = useState("");
   const [newTaskEstimate, setNewTaskEstimate] = useState("");
-  const [newTaskStatus, setNewTaskStatus] = useState<BoardStatus>("Approved");
+  const [newTaskStatus, setNewTaskStatus] = useState<BoardStatus>("Not Started");
   const [isAddingTask, setIsAddingTask] = useState(false);
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   function startEditing() {
     if (!pbi) return;
     setEditTitle(pbi.title);
     setEditDescription(pbi.description);
     setEditPriority(pbi.priority);
-    setEditStatus(pbi.status ?? "Approved");
+    setEditStatus(pbi.status ?? "Not Started");
+    setEditAssignee(pbi.assignee ?? "");
     setIsEditing(true);
   }
 
@@ -69,6 +75,7 @@ export default function PbiDetailPage() {
         description: editDescription,
         priority: editPriority,
         status: editStatus,
+        assignee: editAssignee || null,
       });
       setIsEditing(false);
     } catch (err) {
@@ -118,7 +125,7 @@ export default function PbiDetailPage() {
       setNewTaskTitle("");
       setNewTaskAssignee("");
       setNewTaskEstimate("");
-      setNewTaskStatus("Approved");
+      setNewTaskStatus("Not Started");
       setShowAddTask(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add task");
@@ -213,6 +220,7 @@ export default function PbiDetailPage() {
                         </option>
                       ))}
                     </select>
+                    <AssigneeSelect users={users} value={editAssignee} onChange={setEditAssignee} />
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -247,6 +255,7 @@ export default function PbiDetailPage() {
                           {pbi.priority}
                         </span>
                       </div>
+                      <AssigneeBadges names={pbi.assignee ? [pbi.assignee] : []} />
                     </div>
                     <div className="flex shrink-0 gap-1">
                       <button
@@ -273,21 +282,25 @@ export default function PbiDetailPage() {
                   {pbi.description && <p className="text-white/60">{pbi.description}</p>}
                 </div>
               )}
+
+              <div className="mt-6 border-t border-white/10 pt-5">
+                <DiscussionThread path={`pbis/${pbiId}/discussions`} />
+              </div>
             </div>
 
             {error && <p className="text-sm text-red-400">{error}</p>}
 
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-sm font-medium text-white/70">
+                <h2 className="text-lg font-semibold text-white/90">
                   Tasks {tasks.length > 0 && `(${tasks.length})`}
                 </h2>
                 <button
                   onClick={() => setShowAddTask((v) => !v)}
                   title={showAddTask ? "Close" : "Add Task"}
-                  className="rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-orange-400"
+                  className="rounded-lg p-1.5 text-white transition-colors hover:bg-white/10 hover:text-orange-400"
                 >
-                  {showAddTask ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                  {showAddTask ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
                 </button>
               </div>
 
@@ -319,13 +332,29 @@ export default function PbiDetailPage() {
                             {task.status}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm text-white/50">
-                          {task.assignee ?? "Unassigned"}
-                          {task.estimatedHours != null && ` · Est ${task.estimatedHours}h`}
-                          {task.completedHours != null && ` · Done ${task.completedHours}h`}
-                        </p>
+                        <AssigneeBadges names={task.assignee ? [task.assignee] : []} />
+                        {(task.estimatedHours != null || task.completedHours != null) && (
+                          <p className="mt-1 text-sm text-white/50">
+                            {task.estimatedHours != null && `Est ${task.estimatedHours}h`}
+                            {task.estimatedHours != null && task.completedHours != null && " · "}
+                            {task.completedHours != null && `Done ${task.completedHours}h`}
+                          </p>
+                        )}
                       </div>
                       <div className="flex shrink-0 gap-1">
+                        <button
+                          onClick={() =>
+                            setExpandedTaskId((v) => (v === task.id ? null : task.id))
+                          }
+                          title="Discussion"
+                          className="rounded-lg p-2 text-white/50 hover:bg-white/10 hover:text-white/80"
+                        >
+                          {expandedTaskId === task.id ? (
+                            <ChevronUp className="h-3.5 w-3.5" />
+                          ) : (
+                            <ChevronDown className="h-3.5 w-3.5" />
+                          )}
+                        </button>
                         <button
                           onClick={() => setEditingTaskId(task.id)}
                           title="Edit"
@@ -343,6 +372,11 @@ export default function PbiDetailPage() {
                       </div>
                     </div>
                   )}
+                  {expandedTaskId === task.id && editingTaskId !== task.id && (
+                    <div className="border-t border-white/10 pt-3">
+                      <DiscussionThread path={`tasks/${task.id}/discussions`} collapsible={false} />
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -355,20 +389,7 @@ export default function PbiDetailPage() {
                   className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-orange-500/50 focus:outline-none"
                 />
                 <div className="flex flex-wrap items-center gap-2">
-                  <select
-                    value={newTaskAssignee}
-                    onChange={(e) => setNewTaskAssignee(e.target.value)}
-                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-orange-500/50 focus:outline-none"
-                  >
-                    <option value="" className="bg-black">
-                      Unassigned
-                    </option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.email ?? u.id} className="bg-black">
-                        {u.displayName ?? u.email}
-                      </option>
-                    ))}
-                  </select>
+                  <AssigneeSelect users={users} value={newTaskAssignee} onChange={setNewTaskAssignee} />
                   <input
                     value={newTaskEstimate}
                     onChange={(e) => setNewTaskEstimate(e.target.value)}
@@ -424,7 +445,7 @@ function TaskEditForm({
 }) {
   const [title, setTitle] = useState(task.title);
   const [assignee, setAssignee] = useState(task.assignee ?? "");
-  const [status, setStatus] = useState<BoardStatus>(task.status ?? "Approved");
+  const [status, setStatus] = useState<BoardStatus>(task.status ?? "Not Started");
   const [estimatedHours, setEstimatedHours] = useState(task.estimatedHours?.toString() ?? "");
   const [completedHours, setCompletedHours] = useState(task.completedHours?.toString() ?? "");
   const [isSaving, setIsSaving] = useState(false);
@@ -449,20 +470,7 @@ function TaskEditForm({
         className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-orange-500/50 focus:outline-none"
       />
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          value={assignee}
-          onChange={(e) => setAssignee(e.target.value)}
-          className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-orange-500/50 focus:outline-none"
-        >
-          <option value="" className="bg-black">
-            Unassigned
-          </option>
-          {users.map((u) => (
-            <option key={u.id} value={u.email ?? u.id} className="bg-black">
-              {u.displayName ?? u.email}
-            </option>
-          ))}
-        </select>
+        <AssigneeSelect users={users} value={assignee} onChange={setAssignee} />
         <select
           value={status}
           onChange={(e) => setStatus(e.target.value as BoardStatus)}

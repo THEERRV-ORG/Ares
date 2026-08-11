@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChartColumn, TrendingUp } from "lucide-react";
+import { ChartColumn, Layers, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 
@@ -11,6 +11,12 @@ const CARDS = [
     description: "Track income across every month of a year, and set a yearly target.",
     icon: TrendingUp,
     href: "/analytics/income",
+  },
+  {
+    title: "Board Overview",
+    description: "See how many Epics, PBIs, and Tasks are in each status at a glance.",
+    icon: Layers,
+    href: "/analytics/board",
   },
 ];
 

@@ -64,6 +64,7 @@ export default function RequirementPage() {
         description: draft.description,
         sourceRequirement: requirement,
         status: "Approved",
+        assignees: [],
         createdBy: user?.email ?? null,
         createdAt: Date.now(),
       });
