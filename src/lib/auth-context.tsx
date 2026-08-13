@@ -19,6 +19,7 @@ interface AuthContextValue {
   user: User | null;
   loading: boolean;
   isMember: boolean;
+  hasFinanceAccess: boolean;
   signInWithGoogle: () => Promise<void>;
   signOutUser: () => Promise<void>;
 }
@@ -29,6 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [isMember, setIsMember] = useState(false);
+  const [hasFinanceAccess, setHasFinanceAccess] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -56,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const memberRef = doc(db, "members", user.uid);
     const unsubscribe = onSnapshot(memberRef, (snapshot) => {
       setIsMember(snapshot.exists());
+      setHasFinanceAccess(snapshot.data()?.financeAccess === true);
     });
     return unsubscribe;
   }, [user]);
@@ -102,7 +105,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, isMember: Boolean(user) && isMember, signInWithGoogle, signOutUser }}
+      value={{
+        user,
+        loading,
+        isMember: Boolean(user) && isMember,
+        hasFinanceAccess: Boolean(user) && isMember && hasFinanceAccess,
+        signInWithGoogle,
+        signOutUser,
+      }}
     >
       {children}
     </AuthContext.Provider>

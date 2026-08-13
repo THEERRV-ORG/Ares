@@ -3,18 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Flame, MessageCircle, Kanban, Wallet, ChartColumn, Globe } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/chat", label: "Chat", icon: MessageCircle },
   { href: "/board", label: "Board", icon: Kanban },
-  { href: "/finance", label: "Finance", icon: Wallet },
+  { href: "/finance", label: "Finance", icon: Wallet, financeOnly: true },
   { href: "/analytics", label: "Analytics", icon: ChartColumn },
   { href: "/products", label: "Products", icon: Globe },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { hasFinanceAccess } = useAuth();
 
   return (
     <aside className="fixed inset-y-0 left-0 z-50 flex w-16 flex-col items-center gap-6 border-r border-white/10 bg-black/20 py-6 backdrop-blur-md">
@@ -27,7 +29,8 @@ export function Sidebar() {
       </Link>
 
       <nav className="flex flex-col items-center gap-2">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.filter((item) => !item.financeOnly || hasFinanceAccess).map(
+          ({ href, label, icon: Icon }) => {
           const active = pathname === href || pathname.startsWith(`${href}/`);
           return (
             <Link

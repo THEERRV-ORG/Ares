@@ -15,6 +15,9 @@ export const BOARD_STATUS_STYLES: Record<BoardStatus, string> = {
   Rejected: "bg-red-500/10 text-red-300",
 };
 
+export const ROADMAP_TIMEFRAMES = ["Now", "Next", "Later"] as const;
+export type RoadmapTimeframe = (typeof ROADMAP_TIMEFRAMES)[number];
+
 export interface Epic {
   id: string;
   title: string;
@@ -22,6 +25,7 @@ export interface Epic {
   sourceRequirement: string;
   status: BoardStatus;
   assignees: string[];
+  timeframe: RoadmapTimeframe | null;
   createdBy: string | null;
   createdAt: number;
 }

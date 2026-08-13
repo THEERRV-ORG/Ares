@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, Layers, Kanban, Users } from "lucide-react";
+import { Sparkles, Layers, Kanban, Users, Map } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 
@@ -23,6 +23,12 @@ const CARDS = [
     description: "Log leads with contact details, source, status, and value. Assign, discuss, and follow up.",
     icon: Users,
     href: "/board/leads",
+  },
+  {
+    title: "Roadmap",
+    description: "See Epics grouped into Now, Next, and Later — and move them between columns.",
+    icon: Map,
+    href: "/board/roadmap",
   },
 ];
 

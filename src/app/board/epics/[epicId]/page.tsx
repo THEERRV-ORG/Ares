@@ -18,10 +18,12 @@ import {
   BOARD_STATUSES,
   BOARD_STATUS_STYLES,
   PBI_PRIORITIES,
+  ROADMAP_TIMEFRAMES,
   type BoardStatus,
   type Epic,
   type Pbi,
   type PbiPriority,
+  type RoadmapTimeframe,
   type UserProfile,
 } from "@/lib/board-types";
 
@@ -41,6 +43,7 @@ export default function EpicDetailPage() {
   const [editDescription, setEditDescription] = useState("");
   const [editStatus, setEditStatus] = useState<BoardStatus>("Not Started");
   const [editAssignees, setEditAssignees] = useState<string[]>([]);
+  const [editTimeframe, setEditTimeframe] = useState<RoadmapTimeframe | "">("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,6 +62,7 @@ export default function EpicDetailPage() {
     setEditDescription(epic.description);
     setEditStatus(epic.status ?? "Not Started");
     setEditAssignees(epic.assignees ?? []);
+    setEditTimeframe(epic.timeframe ?? "");
     setIsEditing(true);
   }
 
@@ -71,6 +75,7 @@ export default function EpicDetailPage() {
         description: editDescription,
         status: editStatus,
         assignees: editAssignees,
+        timeframe: editTimeframe || null,
       });
       setIsEditing(false);
     } catch (err) {
@@ -193,6 +198,20 @@ export default function EpicDetailPage() {
                       </option>
                     ))}
                   </select>
+                  <select
+                    value={editTimeframe}
+                    onChange={(e) => setEditTimeframe(e.target.value as RoadmapTimeframe | "")}
+                    className="w-fit rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-orange-500/50 focus:outline-none"
+                  >
+                    <option value="" className="bg-black">
+                      No timeframe
+                    </option>
+                    {ROADMAP_TIMEFRAMES.map((t) => (
+                      <option key={t} value={t} className="bg-black">
+                        {t}
+                      </option>
+                    ))}
+                  </select>
                   <AssigneeMultiSelect users={users} value={editAssignees} onChange={setEditAssignees} />
                   <div className="flex gap-2">
                     <button
@@ -222,6 +241,11 @@ export default function EpicDetailPage() {
                       >
                         {epic.status ?? "Not Started"}
                       </span>
+                      {epic.timeframe && (
+                        <span className="mt-2 ml-2 inline-block rounded-full bg-violet-500/10 px-2 py-0.5 text-xs text-violet-300">
+                          {epic.timeframe}
+                        </span>
+                      )}
                       <AssigneeBadges names={epic.assignees ?? []} />
                     </div>
                     <div className="flex shrink-0 gap-1">

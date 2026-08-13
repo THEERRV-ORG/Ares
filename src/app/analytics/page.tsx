@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ChartColumn, Layers, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
+import { useAuth } from "@/lib/auth-context";
 
 const CARDS = [
   {
@@ -11,6 +12,7 @@ const CARDS = [
     description: "Track income across every month of a year, and set a yearly target.",
     icon: TrendingUp,
     href: "/analytics/income",
+    financeOnly: true,
   },
   {
     title: "Board Overview",
@@ -21,12 +23,15 @@ const CARDS = [
 ];
 
 export default function AnalyticsPage() {
+  const { hasFinanceAccess } = useAuth();
+  const cards = CARDS.filter((card) => !card.financeOnly || hasFinanceAccess);
+
   return (
       <PageBackground>
         <PageHeader title="Analytics" icon={ChartColumn} />
 
         <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-6 p-8 sm:grid-cols-2">
-          {CARDS.map(({ title, description, icon: Icon, href }) => (
+          {cards.map(({ title, description, icon: Icon, href }) => (
             <Link
               key={title}
               href={href}
