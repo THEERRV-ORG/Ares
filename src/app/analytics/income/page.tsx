@@ -5,6 +5,7 @@ import { doc, setDoc } from "firebase/firestore";
 import { ChevronLeft, ChevronRight, Loader2, PartyPopper, Save, Target, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
+import { RequireFinanceAccess } from "@/components/require-finance-access";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useDbDoc, useDbList } from "@/lib/use-db";
@@ -84,6 +85,7 @@ export default function IncomeAnalyticsPage() {
   }
 
   return (
+    <RequireFinanceAccess>
       <PageBackground>
         <PageHeader title="Income Analytics" icon={TrendingUp} backHref="/analytics" />
 
@@ -162,6 +164,7 @@ export default function IncomeAnalyticsPage() {
           </div>
         </div>
       </PageBackground>
+    </RequireFinanceAccess>
   );
 }
 

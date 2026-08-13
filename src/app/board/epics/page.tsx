@@ -14,8 +14,10 @@ import { useDbList } from "@/lib/use-db";
 import {
   BOARD_STATUSES,
   BOARD_STATUS_STYLES,
+  ROADMAP_TIMEFRAMES,
   type BoardStatus,
   type Epic,
+  type RoadmapTimeframe,
   type UserProfile,
 } from "@/lib/board-types";
 
@@ -29,6 +31,7 @@ export default function EpicsPage() {
   const [newDescription, setNewDescription] = useState("");
   const [newStatus, setNewStatus] = useState<BoardStatus>("Not Started");
   const [newAssignees, setNewAssignees] = useState<string[]>([]);
+  const [newTimeframe, setNewTimeframe] = useState<RoadmapTimeframe | "">("");
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -43,6 +46,7 @@ export default function EpicsPage() {
         sourceRequirement: "",
         status: newStatus,
         assignees: newAssignees,
+        timeframe: newTimeframe || null,
         createdBy: user?.email ?? null,
         createdAt: Date.now(),
       });
@@ -50,6 +54,7 @@ export default function EpicsPage() {
       setNewDescription("");
       setNewStatus("Not Started");
       setNewAssignees([]);
+      setNewTimeframe("");
       setShowAddEpic(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add epic");
@@ -107,6 +112,20 @@ export default function EpicsPage() {
                       </option>
                     ))}
                   </select>
+                  <select
+                    value={newTimeframe}
+                    onChange={(e) => setNewTimeframe(e.target.value as RoadmapTimeframe | "")}
+                    className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-orange-500/50 focus:outline-none"
+                  >
+                    <option value="" className="bg-black">
+                      No timeframe
+                    </option>
+                    {ROADMAP_TIMEFRAMES.map((t) => (
+                      <option key={t} value={t} className="bg-black">
+                        {t}
+                      </option>
+                    ))}
+                  </select>
                   <button
                     onClick={addEpic}
                     disabled={!newTitle.trim() || isAdding}
@@ -146,6 +165,11 @@ export default function EpicsPage() {
                       >
                         {epic.status ?? "Not Started"}
                       </span>
+                      {epic.timeframe && (
+                        <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-xs text-violet-300">
+                          {epic.timeframe}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-0.5 truncate text-sm text-white/50">{epic.description}</p>
                     <AssigneeBadges names={epic.assignees ?? []} />

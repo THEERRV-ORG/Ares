@@ -6,6 +6,7 @@ import { Wallet, Plus, X, Trash2, Loader2, RotateCcw, Save } from "lucide-react"
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { useConfirmDialog } from "@/components/confirm-dialog";
+import { RequireFinanceAccess } from "@/components/require-finance-access";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useDbList } from "@/lib/use-db";
@@ -171,6 +172,7 @@ export default function FinancePage() {
   }
 
   return (
+    <RequireFinanceAccess>
       <PageBackground>
         {dialog}
         <PageHeader title="Finance" icon={Wallet} />
@@ -295,6 +297,7 @@ export default function FinancePage() {
           </div>
         </div>
       </PageBackground>
+    </RequireFinanceAccess>
   );
 }
 

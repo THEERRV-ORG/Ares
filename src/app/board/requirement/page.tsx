@@ -65,6 +65,7 @@ export default function RequirementPage() {
         sourceRequirement: requirement,
         status: "Approved",
         assignees: [],
+        timeframe: null,
         createdBy: user?.email ?? null,
         createdAt: Date.now(),
       });
