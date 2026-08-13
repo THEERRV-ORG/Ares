@@ -11,6 +11,10 @@ import {
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
+const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+const LAST_ACTIVITY_KEY = "ares_last_activity";
+const ACTIVITY_EVENTS = ["mousedown", "keydown", "scroll", "touchstart"] as const;
+
 interface AuthContextValue {
   user: User | null;
   loading: boolean;
@@ -54,6 +58,38 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsMember(snapshot.exists());
     });
     return unsubscribe;
+  }, [user]);
+
+  // Auto sign-out after a period of inactivity, so a signed-in session doesn't stay
+  // open forever on a shared or unattended machine.
+  useEffect(() => {
+    if (!user) return;
+
+    function markActive() {
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+    }
+
+    function checkInactivity() {
+      const last = Number(localStorage.getItem(LAST_ACTIVITY_KEY) ?? Date.now());
+      if (Date.now() - last >= INACTIVITY_TIMEOUT_MS) {
+        firebaseSignOut(auth);
+      }
+    }
+
+    markActive();
+    checkInactivity();
+
+    for (const event of ACTIVITY_EVENTS) {
+      window.addEventListener(event, markActive, { passive: true });
+    }
+    const interval = setInterval(checkInactivity, 60 * 1000);
+
+    return () => {
+      for (const event of ACTIVITY_EVENTS) {
+        window.removeEventListener(event, markActive);
+      }
+      clearInterval(interval);
+    };
   }, [user]);
 
   async function signInWithGoogle() {

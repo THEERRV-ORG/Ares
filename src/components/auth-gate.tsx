@@ -4,6 +4,7 @@ import Image from "next/image";
 import { Flame, LogOut, ShieldCheck } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { ParticleNetworkBackground } from "@/components/ui/particle-network-background";
+import { RainbowButton } from "@/components/ui/rainbow-button";
 import theerrvLogo from "@/assets/Theerrvlogo.png";
 
 function GoogleIcon() {
@@ -55,33 +56,30 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (!user) {
     return (
       <AuthScreen>
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-orange-500/15 text-orange-400">
-          <Flame className="h-7 w-7" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-white">Ares</h1>
-          <p className="mt-1 text-sm text-white/50">Internal workspace for the team</p>
-        </div>
-        <div className="flex items-center gap-2 text-sm text-white/50">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white">
+        <div className="flex items-center gap-3">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-orange-500/15 text-orange-400">
+            <Flame className="h-7 w-7" />
+          </div>
+          <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white p-1.5">
             <Image
               src={theerrvLogo}
               alt="Theerrv Technologies"
-              className="h-[75px] w-[75px] max-w-none object-cover object-top"
+              className="h-full w-full object-contain"
             />
           </span>
-          <span>Powered by Theerrv Technologies</span>
+        </div>
+        <div className="flex flex-col items-center gap-1">
+          <h1 className="text-3xl font-extrabold tracking-tight text-white">Ares</h1>
+          <p className="text-xs text-white/40">Powered by Theerrv Technologies</p>
         </div>
         <p className="text-sm text-white/40">
-          Sign in with your company Google account to access Board, Finance, and Analytics.
+          Ares, your AI-powered personal assistant — sign in with your company Google account to
+          get started.
         </p>
-        <button
-          onClick={signInWithGoogle}
-          className="flex w-full items-center justify-center gap-2.5 rounded-lg bg-white px-5 py-2.5 font-medium text-black transition-colors hover:bg-white/90"
-        >
+        <RainbowButton onClick={signInWithGoogle} className="w-full gap-2.5">
           <GoogleIcon />
           Sign in with Google
-        </button>
+        </RainbowButton>
       </AuthScreen>
     );
   }
