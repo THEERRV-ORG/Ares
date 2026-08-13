@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, MessageCircle, Kanban, Wallet, ChartColumn } from "lucide-react";
+import { Flame, MessageCircle, Kanban, Wallet, ChartColumn, Globe } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -10,6 +10,7 @@ const NAV_ITEMS = [
   { href: "/board", label: "Board", icon: Kanban },
   { href: "/finance", label: "Finance", icon: Wallet },
   { href: "/analytics", label: "Analytics", icon: ChartColumn },
+  { href: "/products", label: "Products", icon: Globe },
 ];
 
 export function Sidebar() {

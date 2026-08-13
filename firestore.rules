@@ -51,6 +51,10 @@ service cloud.firestore {
       }
     }
 
+    match /products/{productId} {
+      allow read, write: if isMember();
+    }
+
     match /financeMonths/{monthId} {
       allow read, write: if isMember();
     }
