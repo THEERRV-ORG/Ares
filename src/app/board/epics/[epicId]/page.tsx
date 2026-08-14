@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { addDoc, collection, doc, getDocs, updateDoc, writeBatch } from "firebase/firestore";
-import { ChevronRight, Layers, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { ChevronRight, Layers, Loader2, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { useConfirmDialog } from "@/components/confirm-dialog";
@@ -55,6 +55,15 @@ export default function EpicDetailPage() {
   const [newPbiStatus, setNewPbiStatus] = useState<BoardStatus>("Not Started");
   const [newPbiAssignee, setNewPbiAssignee] = useState("");
   const [isAddingPbi, setIsAddingPbi] = useState(false);
+  const [pbiSearch, setPbiSearch] = useState("");
+
+  const filteredPbis = useMemo(() => {
+    const q = pbiSearch.trim().toLowerCase();
+    if (!q) return pbis;
+    return pbis.filter(
+      (pbi) => pbi.title.toLowerCase().includes(q) || pbi.description.toLowerCase().includes(q),
+    );
+  }, [pbis, pbiSearch]);
 
   function startEditing() {
     if (!epic) return;
@@ -295,7 +304,23 @@ export default function EpicDetailPage() {
                 </button>
               </div>
 
-              {pbis.map((pbi) => (
+              {pbis.length > 0 && (
+                <div className="relative">
+                  <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-white/30" />
+                  <input
+                    value={pbiSearch}
+                    onChange={(e) => setPbiSearch(e.target.value)}
+                    placeholder="Search PBIs…"
+                    className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pr-3 pl-9 text-sm text-white placeholder:text-white/40 focus:border-orange-500/50 focus:outline-none"
+                  />
+                </div>
+              )}
+
+              {pbis.length > 0 && filteredPbis.length === 0 && (
+                <p className="text-sm text-white/40">No PBIs match &quot;{pbiSearch}&quot;.</p>
+              )}
+
+              {filteredPbis.map((pbi) => (
                 <Link
                   key={pbi.id}
                   href={`/board/epics/${epicId}/pbis/${pbi.id}`}

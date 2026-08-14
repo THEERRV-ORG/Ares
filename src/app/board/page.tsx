@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles, Layers, Kanban, Users, Map } from "lucide-react";
+import { Sparkles, Layers, Kanban, Users, Map, MessagesSquare } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 
@@ -30,6 +30,12 @@ const CARDS = [
     icon: Map,
     href: "/board/roadmap",
   },
+  {
+    title: "Retrospective",
+    description: "Anonymous board for what's going well, what needs to change, and action items.",
+    icon: MessagesSquare,
+    href: "/board/retro",
+  },
 ];
 
 export default function BoardPage() {
@@ -37,7 +43,8 @@ export default function BoardPage() {
       <PageBackground>
         <PageHeader title="Work Tracker" icon={Kanban} />
 
-        <div className="mx-auto grid w-full max-w-3xl grid-cols-1 gap-6 p-8 sm:grid-cols-2">
+        <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto grid w-full max-w-5xl grid-cols-1 gap-6 p-8 sm:grid-cols-2 lg:grid-cols-3">
           {CARDS.map(({ title, description, icon: Icon, href }) => {
             const cardClasses =
               "flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm transition-colors";
@@ -66,6 +73,7 @@ export default function BoardPage() {
               </div>
             );
           })}
+        </div>
         </div>
       </PageBackground>
   );

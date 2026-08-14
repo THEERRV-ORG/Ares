@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { addDoc, collection } from "firebase/firestore";
-import { Layers, ChevronRight, Loader2, Plus, X } from "lucide-react";
+import { Layers, ChevronRight, Loader2, Plus, Search, X } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { AssigneeMultiSelect } from "@/components/assignee-picker";
@@ -34,6 +34,16 @@ export default function EpicsPage() {
   const [newTimeframe, setNewTimeframe] = useState<RoadmapTimeframe | "">("");
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+
+  const filteredEpics = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return epics;
+    return epics.filter(
+      (epic) =>
+        epic.title.toLowerCase().includes(q) || epic.description.toLowerCase().includes(q),
+    );
+  }, [epics, search]);
 
   async function addEpic() {
     if (!newTitle.trim()) return;
@@ -80,6 +90,16 @@ export default function EpicsPage() {
               >
                 {showAddEpic ? <X className="h-6 w-6" /> : <Plus className="h-6 w-6" />}
               </button>
+            </div>
+
+            <div className="relative">
+              <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-white/30" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search epics…"
+                className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pr-3 pl-9 text-sm text-white placeholder:text-white/40 focus:border-orange-500/50 focus:outline-none"
+              />
             </div>
 
             {error && <p className="text-sm text-red-400">{error}</p>}
@@ -150,8 +170,10 @@ export default function EpicsPage() {
                 </Link>{" "}
                 card.
               </p>
+            ) : filteredEpics.length === 0 ? (
+              <p className="text-sm text-white/40">No epics match &quot;{search}&quot;.</p>
             ) : (
-              epics.map((epic) => (
+              filteredEpics.map((epic) => (
                 <Link
                   key={epic.id}
                   href={`/board/epics/${epic.id}`}

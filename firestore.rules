@@ -60,6 +60,17 @@ service cloud.firestore {
       allow read, write: if isMember();
     }
 
+    // Anonymous by design: block any write that tries to attach an author field.
+    match /retroItems/{itemId} {
+      allow read: if isMember();
+      allow create: if isMember() &&
+        !("createdBy" in request.resource.data) &&
+        !("authorEmail" in request.resource.data) &&
+        !("authorName" in request.resource.data);
+      allow delete: if isMember();
+      allow update: if false;
+    }
+
     match /financeMonths/{monthId} {
       allow read, write: if hasFinanceAccess();
     }
