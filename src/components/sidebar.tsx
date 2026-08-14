@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, MessageCircle, Kanban, Wallet, ChartColumn, Globe } from "lucide-react";
+import { Flame, MessageCircle, Kanban, Wallet, ChartColumn, Globe, IdCard } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
+  { href: "/team", label: "Members", icon: IdCard },
   { href: "/chat", label: "Chat", icon: MessageCircle },
   { href: "/board", label: "Board", icon: Kanban },
   { href: "/finance", label: "Finance", icon: Wallet, financeOnly: true },
