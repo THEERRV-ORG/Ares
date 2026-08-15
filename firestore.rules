@@ -74,7 +74,9 @@ service cloud.firestore {
     }
 
     match /products/{productId} {
-      allow read, create, delete: if isMember();
+      // The bot needs to read the list to know what to check, but never create/delete products.
+      allow read: if isMember() || isMonitorBot();
+      allow create, delete: if isMember();
       // Regular members can edit anything; the monitor bot may only touch its own status fields.
       allow update: if isMember() || (isMonitorBot() && isOnlyUpdatingMonitorFields());
 
