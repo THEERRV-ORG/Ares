@@ -10,7 +10,7 @@ import { AssigneeSelect } from "@/components/assignee-picker";
 import { AssigneeBadges } from "@/components/assignee-badges";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { useDbList } from "@/lib/use-db";
+import { useApprovedUsers, useDbList } from "@/lib/use-db";
 import { formatINR } from "@/lib/format";
 import {
   LEAD_SOURCES,
@@ -25,7 +25,7 @@ import {
 export default function LeadsPage() {
   const { user } = useAuth();
   const leads = useDbList<Lead>("leads", (a, b) => b.createdAt - a.createdAt);
-  const users = useDbList<UserProfile & { id: string }>("users");
+  const users = useApprovedUsers<UserProfile & { id: string }>();
 
   const [showAddLead, setShowAddLead] = useState(false);
   const [newName, setNewName] = useState("");

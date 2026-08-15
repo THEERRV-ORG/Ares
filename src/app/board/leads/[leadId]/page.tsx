@@ -12,7 +12,7 @@ import { AssigneeSelect } from "@/components/assignee-picker";
 import { AssigneeBadges } from "@/components/assignee-badges";
 import { DiscussionThread } from "@/components/discussion-thread";
 import { db } from "@/lib/firebase";
-import { useDbDoc, useDbList } from "@/lib/use-db";
+import { useApprovedUsers, useDbDoc } from "@/lib/use-db";
 import { formatINR } from "@/lib/format";
 import {
   LEAD_SOURCES,
@@ -30,7 +30,7 @@ export default function LeadDetailPage() {
   const { confirm, dialog } = useConfirmDialog();
 
   const lead = useDbDoc<Omit<Lead, "id">>(`leads/${leadId}`);
-  const users = useDbList<UserProfile & { id: string }>("users");
+  const users = useApprovedUsers<UserProfile & { id: string }>();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState("");
