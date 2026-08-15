@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { addDoc, collection, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronRight,
   ExternalLink,
   Globe,
   Loader2,
@@ -98,6 +100,11 @@ export default function ProductsPage() {
             </button>
           </div>
 
+          <p className="text-xs text-white/30">
+            Ares is watching over these sites — every URL gets checked automatically every 3
+            hours. Click a card for the full history and stats.
+          </p>
+
           {error && <p className="text-sm text-red-400">{error}</p>}
 
           {showAdd && (
@@ -158,10 +165,10 @@ export default function ProductsPage() {
                     }}
                   />
                 ) : (
-                  <div
+                  <Link
                     key={product.id}
-                    onClick={() => window.open(product.url, "_blank", "noopener,noreferrer")}
-                    className="flex cursor-pointer flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm transition-colors hover:border-orange-500/40 hover:bg-white/[0.07]"
+                    href={`/products/${product.id}`}
+                    className="flex flex-col gap-2 rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm transition-colors hover:border-orange-500/40 hover:bg-white/[0.07]"
                   >
                     <div className="flex items-start justify-between gap-2">
                       <h3 className="min-w-0 truncate text-lg font-medium text-white">
@@ -170,7 +177,7 @@ export default function ProductsPage() {
                       <div className="flex shrink-0 gap-1">
                         <button
                           onClick={(e) => {
-                            e.stopPropagation();
+                            e.preventDefault();
                             setEditingId(product.id);
                           }}
                           title="Edit"
@@ -180,7 +187,7 @@ export default function ProductsPage() {
                         </button>
                         <button
                           onClick={(e) => {
-                            e.stopPropagation();
+                            e.preventDefault();
                             deleteProduct(product.id, product.name);
                           }}
                           title="Delete"
@@ -193,12 +200,21 @@ export default function ProductsPage() {
                     {product.description && (
                       <p className="text-sm text-white/50">{product.description}</p>
                     )}
-                    <span className="flex items-center gap-1.5 truncate text-xs text-orange-300/80">
+                    <a
+                      href={product.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="flex w-fit items-center gap-1.5 truncate text-xs text-orange-300/80 hover:text-orange-300 hover:underline"
+                    >
                       <ExternalLink className="h-3 w-3 shrink-0" />
                       {product.url.replace(/^https?:\/\//, "")}
-                    </span>
-                    <MonitorStatus product={product} />
-                  </div>
+                    </a>
+                    <div className="flex items-center justify-between gap-2">
+                      <MonitorStatus product={product} />
+                      <ChevronRight className="h-4 w-4 shrink-0 text-white/30" />
+                    </div>
+                  </Link>
                 ),
               )}
             </div>
