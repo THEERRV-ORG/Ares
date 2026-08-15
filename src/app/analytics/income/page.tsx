@@ -56,7 +56,11 @@ export default function IncomeAnalyticsPage() {
   const chartData = useMemo(() => {
     return fyMonthKeys(fyStartYear).map(({ name, key }) => {
       const month = allMonths.find((m) => m.id === key);
-      return { month: name, key, income: month?.income ?? 0 };
+      const income = Object.values(month?.incomeEntries ?? {}).reduce(
+        (sum, e) => sum + (e.amount || 0),
+        0,
+      );
+      return { month: name, key, income };
     });
   }, [allMonths, fyStartYear]);
 

@@ -11,7 +11,7 @@ import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useDbList } from "@/lib/use-db";
 import { formatINR } from "@/lib/format";
-import type { FinanceCategory, FinanceMonth } from "@/lib/finance-types";
+import type { FinanceCategory, FinanceIncomeEntry, FinanceMonth } from "@/lib/finance-types";
 
 function currentMonthKey() {
   const now = new Date();
@@ -21,6 +21,14 @@ function currentMonthKey() {
 function monthLabel(key: string) {
   const [y, m] = key.split("-").map(Number);
   return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+function formatEntryTimestamp(ts: number) {
+  return new Date(ts).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+}
+
+function monthTotalIncome(month: FinanceMonth) {
+  return Object.values(month.incomeEntries ?? {}).reduce((sum, e) => sum + (e.amount || 0), 0);
 }
 
 function monthTotalSpent(month: FinanceMonth) {
@@ -37,13 +45,23 @@ export default function FinancePage() {
 
   const allMonths = useDbList<FinanceMonth>("financeMonths");
 
+  const [showAddIncome, setShowAddIncome] = useState(false);
+  const [newIncomeSource, setNewIncomeSource] = useState("");
+  const [newIncomeAmount, setNewIncomeAmount] = useState("");
+  const [isAddingIncome, setIsAddingIncome] = useState(false);
+
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   const [newCategoryAmount, setNewCategoryAmount] = useState("");
   const [isAddingCategory, setIsAddingCategory] = useState(false);
 
   const monthData = allMonths.find((m) => m.id === selectedMonth);
-  const income = monthData?.income ?? 0;
+  const incomeEntries = useMemo(() => {
+    const entries = Object.entries(monthData?.incomeEntries ?? {}) as [string, FinanceIncomeEntry][];
+    return entries.map(([id, entry]) => ({ id, ...entry })).sort((a, b) => a.createdAt - b.createdAt);
+  }, [monthData]);
+  const income = incomeEntries.reduce((sum, e) => sum + (e.amount || 0), 0);
+
   const categories = useMemo(() => {
     const entries = Object.entries(monthData?.categories ?? {}) as [string, FinanceCategory][];
     return entries
@@ -55,24 +73,53 @@ export default function FinancePage() {
   const carriedOver = useMemo(() => {
     return allMonths
       .filter((m) => m.id < selectedMonth)
-      .reduce((sum, m) => sum + (m.income ?? 0) - monthTotalSpent(m), 0);
+      .reduce((sum, m) => sum + monthTotalIncome(m) - monthTotalSpent(m), 0);
   }, [allMonths, selectedMonth]);
 
   const availableBalance = carriedOver + income - totalSpent;
 
-  async function saveIncome(value: number) {
+  async function addIncomeEntry() {
+    if (!newIncomeSource.trim() || !newIncomeAmount.trim()) return;
+    setIsAddingIncome(true);
+    setError(null);
     try {
+      const entryId = crypto.randomUUID();
       await setDoc(
         doc(db, "financeMonths", selectedMonth),
         {
-          income: value,
-          updatedBy: user?.email ?? null,
-          updatedAt: Date.now(),
+          incomeEntries: {
+            [entryId]: {
+              source: newIncomeSource,
+              amount: Number(newIncomeAmount),
+              createdBy: user?.email ?? null,
+              createdAt: Date.now(),
+            },
+          },
         },
         { merge: true },
       );
+      setNewIncomeSource("");
+      setNewIncomeAmount("");
+      setShowAddIncome(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to save income");
+      setError(err instanceof Error ? err.message : "Failed to add income");
+    } finally {
+      setIsAddingIncome(false);
+    }
+  }
+
+  async function deleteIncomeEntry(entryId: string, source: string) {
+    const ok = await confirm({
+      title: "Delete this income entry?",
+      description: `"${source}" for ${monthLabel(selectedMonth)} will be permanently deleted.`,
+    });
+    if (!ok) return;
+    try {
+      await updateDoc(doc(db, "financeMonths", selectedMonth), {
+        [`incomeEntries.${entryId}`]: deleteField(),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete income entry");
     }
   }
 
@@ -142,7 +189,7 @@ export default function FinancePage() {
   async function handleReset() {
     const ok = await confirm({
       title: `Reset ${monthLabel(selectedMonth)}?`,
-      description: "This clears income and every category amount for this month back to 0.",
+      description: "This clears every income entry and category amount for this month back to 0.",
       confirmLabel: "Reset",
       typeToConfirm: "RESET",
     });
@@ -157,7 +204,7 @@ export default function FinancePage() {
       await setDoc(
         doc(db, "financeMonths", selectedMonth),
         {
-          income: 0,
+          incomeEntries: {},
           categories: zeroedCategories,
           updatedBy: user?.email ?? null,
           updatedAt: Date.now(),
@@ -209,12 +256,91 @@ export default function FinancePage() {
               <StatTile label="Balance" value={availableBalance} tone="highlight" />
             </div>
 
-            <div className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/5 p-6 backdrop-blur-sm">
-              <h2 className="text-sm font-medium text-white/70">Income this month</h2>
-              <AmountInput key={`${selectedMonth}-${income}`} value={income} onCommit={saveIncome} />
-            </div>
-
             {error && <p className="text-sm text-red-400">{error}</p>}
+
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-medium text-white/70">
+                  Income for {monthLabel(selectedMonth)}{" "}
+                  {incomeEntries.length > 0 && `(${incomeEntries.length})`}
+                </h2>
+                <button
+                  onClick={() => setShowAddIncome((v) => !v)}
+                  title={showAddIncome ? "Close" : "Add Income"}
+                  className="rounded-lg p-1.5 text-white/50 transition-colors hover:bg-white/10 hover:text-orange-400"
+                >
+                  {showAddIncome ? <X className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                </button>
+              </div>
+
+              {incomeEntries.length === 0 && !showAddIncome && (
+                <p className="text-sm text-white/40">
+                  No income logged for this month yet — add each amount as you receive it (e.g.
+                  &quot;Client X payment&quot;, &quot;Consulting&quot;), so you can see exactly
+                  where your income came from.
+                </p>
+              )}
+
+              {incomeEntries.map((entry) => (
+                <div
+                  key={entry.id}
+                  className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
+                >
+                  <div className="min-w-0 flex-1">
+                    <span className="block truncate text-lg font-medium text-white">
+                      {entry.source}
+                    </span>
+                    <span className="text-xs text-white/40">
+                      Added {formatEntryTimestamp(entry.createdAt)}
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-sm font-semibold text-sky-300">
+                    {formatINR(entry.amount)}
+                  </span>
+                  <button
+                    onClick={() => deleteIncomeEntry(entry.id, entry.source)}
+                    title="Delete"
+                    className="rounded-lg p-2 text-white/50 hover:bg-red-500/10 hover:text-red-400"
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {showAddIncome && (
+                <div className="flex items-center gap-2 rounded-xl border border-dashed border-white/15 bg-black/30 p-4 backdrop-blur-sm">
+                  <input
+                    value={newIncomeSource}
+                    onChange={(e) => setNewIncomeSource(e.target.value)}
+                    placeholder="Where did this income come from…"
+                    className="flex-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-orange-500/50 focus:outline-none"
+                  />
+                  <CurrencyField>
+                    <input
+                      value={newIncomeAmount}
+                      onChange={(e) => setNewIncomeAmount(e.target.value)}
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="Amount"
+                      className="w-32 rounded-r-lg border border-white/10 bg-white/5 px-3 py-2 text-right text-sm text-white placeholder:text-white/40 [appearance:textfield] focus:border-orange-500/50 focus:outline-none [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    />
+                  </CurrencyField>
+                  <button
+                    onClick={addIncomeEntry}
+                    disabled={!newIncomeSource.trim() || !newIncomeAmount.trim() || isAddingIncome}
+                    className="flex items-center gap-2 rounded-lg bg-orange-500 px-4 py-2 text-sm font-medium text-white transition-colors enabled:hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {isAddingIncome ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="h-3.5 w-3.5" />
+                    )}
+                    Add
+                  </button>
+                </div>
+              )}
+            </div>
 
             <div className="flex flex-col gap-3">
               <div className="flex items-center justify-between">
