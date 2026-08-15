@@ -1,3 +1,5 @@
+export type ProductCheckStatus = "up" | "down" | "error";
+
 export interface Product {
   id: string;
   name: string;
@@ -5,4 +7,17 @@ export interface Product {
   description: string;
   createdBy: string | null;
   createdAt: number;
+  lastCheckedAt?: number | null;
+  lastStatus?: ProductCheckStatus | null;
+  lastStatusCode?: number | null;
+  lastError?: string | null;
+}
+
+export interface ProductCheck {
+  id: string;
+  status: ProductCheckStatus;
+  statusCode: number | null;
+  error: string | null;
+  responseTimeMs: number | null;
+  checkedAt: number;
 }

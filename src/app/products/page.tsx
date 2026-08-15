@@ -2,7 +2,18 @@
 
 import { useState } from "react";
 import { addDoc, collection, deleteDoc, doc, updateDoc } from "firebase/firestore";
-import { ExternalLink, Globe, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  ExternalLink,
+  Globe,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  X,
+  XCircle,
+} from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { useConfirmDialog } from "@/components/confirm-dialog";
@@ -186,6 +197,7 @@ export default function ProductsPage() {
                       <ExternalLink className="h-3 w-3 shrink-0" />
                       {product.url.replace(/^https?:\/\//, "")}
                     </span>
+                    <MonitorStatus product={product} />
                   </div>
                 ),
               )}
@@ -194,6 +206,42 @@ export default function ProductsPage() {
         </div>
       </div>
     </PageBackground>
+  );
+}
+
+function formatRelativeTime(ts: number) {
+  const diffMs = Date.now() - ts;
+  const minutes = Math.round(diffMs / 60_000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+function MonitorStatus({ product }: { product: Product }) {
+  if (!product.lastCheckedAt || !product.lastStatus) {
+    return <p className="text-xs text-white/30">Not checked yet</p>;
+  }
+
+  const config = {
+    up: { icon: CheckCircle2, label: "Up", className: "text-emerald-400" },
+    down: { icon: XCircle, label: "Down", className: "text-red-400" },
+    error: { icon: AlertTriangle, label: "Error", className: "text-amber-400" },
+  }[product.lastStatus];
+
+  const Icon = config.icon;
+
+  return (
+    <div
+      className={`flex items-center gap-1.5 text-xs ${config.className}`}
+      title={product.lastError ?? undefined}
+    >
+      <Icon className="h-3.5 w-3.5 shrink-0" />
+      <span>{config.label}</span>
+      <span className="text-white/30">· checked {formatRelativeTime(product.lastCheckedAt)}</span>
+    </div>
   );
 }
 
