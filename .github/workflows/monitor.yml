@@ -1,0 +1,15 @@
+name: Product Uptime Monitor
+
+on:
+  schedule:
+    - cron: "0 */3 * * *" # every 3 hours
+  workflow_dispatch: {} # allows manually triggering a run from the Actions tab
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/monitor
+        run: |
+          curl -sf -H "x-monitor-secret: ${{ secrets.MONITOR_SECRET }}" \
+            "${{ secrets.ARES_URL }}/api/monitor"

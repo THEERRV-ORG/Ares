@@ -12,6 +12,23 @@ service cloud.firestore {
         get(/databases/$(database)/documents/members/$(request.auth.uid)).data.financeAccess == true;
     }
 
+    // Scoped bot account for the uptime monitor. Deliberately NOT in /members — it has
+    // no general access to the app, only the narrow allowances granted explicitly below.
+    function isMonitorBot() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/monitorBots/$(request.auth.uid));
+    }
+
+    function isOnlyUpdatingMonitorFields() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(["lastCheckedAt", "lastStatus", "lastStatusCode", "lastError"]);
+    }
+
+    // Console-managed only, like /members — the monitor bot's own UID lives here.
+    match /monitorBots/{uid} {
+      allow read, write: if false;
+    }
+
     // Every signed-in user gets their own profile doc written by the app on login.
     match /users/{uid} {
       allow read: if isMember();
@@ -57,7 +74,15 @@ service cloud.firestore {
     }
 
     match /products/{productId} {
-      allow read, write: if isMember();
+      allow read, create, delete: if isMember();
+      // Regular members can edit anything; the monitor bot may only touch its own status fields.
+      allow update: if isMember() || (isMonitorBot() && isOnlyUpdatingMonitorFields());
+
+      match /checks/{checkId} {
+        allow read: if isMember();
+        allow create: if isMonitorBot();
+        allow update, delete: if false;
+      }
     }
 
     // Anonymous by design: block any write that tries to attach an author field.
