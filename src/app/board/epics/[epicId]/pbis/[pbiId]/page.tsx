@@ -13,7 +13,7 @@ import { AssigneeBadges } from "@/components/assignee-badges";
 import { DiscussionThread } from "@/components/discussion-thread";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { useDbDoc, useDbList } from "@/lib/use-db";
+import { useApprovedUsers, useDbDoc, useDbList } from "@/lib/use-db";
 import {
   BOARD_STATUSES,
   BOARD_STATUS_STYLES,
@@ -34,7 +34,7 @@ export default function PbiDetailPage() {
   const pbi = useDbDoc<Omit<Pbi, "id">>(`pbis/${pbiId}`);
   const allTasks = useDbList<Task>("tasks", (a, b) => b.createdAt - a.createdAt);
   const tasks = allTasks.filter((t) => t.pbiId === pbiId);
-  const users = useDbList<UserProfile & { id: string }>("users");
+  const users = useApprovedUsers<UserProfile & { id: string }>();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");

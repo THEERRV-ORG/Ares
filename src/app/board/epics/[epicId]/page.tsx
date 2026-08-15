@@ -13,7 +13,7 @@ import { AssigneeBadges } from "@/components/assignee-badges";
 import { DiscussionThread } from "@/components/discussion-thread";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
-import { useDbDoc, useDbList } from "@/lib/use-db";
+import { useApprovedUsers, useDbDoc, useDbList } from "@/lib/use-db";
 import {
   BOARD_STATUSES,
   BOARD_STATUS_STYLES,
@@ -36,7 +36,7 @@ export default function EpicDetailPage() {
   const epic = useDbDoc<Omit<Epic, "id">>(`epics/${epicId}`);
   const allPbis = useDbList<Pbi>("pbis", (a, b) => b.createdAt - a.createdAt);
   const pbis = allPbis.filter((p) => p.epicId === epicId);
-  const users = useDbList<UserProfile & { id: string }>("users");
+  const users = useApprovedUsers<UserProfile & { id: string }>();
 
   const [isEditing, setIsEditing] = useState(false);
   const [editTitle, setEditTitle] = useState("");

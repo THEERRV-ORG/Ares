@@ -34,3 +34,18 @@ export function useDbDoc<T>(path: string): T | null | undefined {
 
   return document;
 }
+
+/**
+ * Every account that has ever attempted to sign in gets a `users` doc — even ones never
+ * approved. This narrows that list down to only actual approved members (`members/{uid}`
+ * exists), so assignee pickers and the like never show unapproved or duplicate accounts.
+ */
+export function useApprovedUsers<T extends { id: string }>(): T[] {
+  const users = useDbList<T>("users");
+  const members = useDbList<{ id: string }>("members");
+
+  return useMemo(() => {
+    const approvedIds = new Set(members.map((m) => m.id));
+    return users.filter((u) => approvedIds.has(u.id));
+  }, [users, members]);
+}
