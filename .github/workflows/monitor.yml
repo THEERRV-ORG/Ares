@@ -11,5 +11,12 @@ jobs:
     steps:
       - name: Ping /api/monitor
         run: |
-          curl -sf -H "x-monitor-secret: ${{ secrets.MONITOR_SECRET }}" \
-            "${{ secrets.ARES_URL }}/api/monitor"
+          http_code=$(curl -s -o response.json -w "%{http_code}" \
+            -H "x-monitor-secret: ${{ secrets.MONITOR_SECRET }}" \
+            "${{ secrets.ARES_URL }}/api/monitor")
+          echo "HTTP status: $http_code"
+          echo "Response body:"
+          cat response.json
+          if [ "$http_code" -ge 400 ]; then
+            exit 1
+          fi
