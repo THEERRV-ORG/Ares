@@ -1,12 +1,23 @@
 import { getApps, initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword, signOut } from "firebase/auth";
-import { addDoc, collection, doc, getDocs, getFirestore, updateDoc } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  deleteDoc,
+  doc,
+  getDocs,
+  getFirestore,
+  query,
+  updateDoc,
+  where,
+} from "firebase/firestore";
 import type { ProductCheckStatus } from "@/lib/product-types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const CHECK_TIMEOUT_MS = 10_000;
+const CHECK_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Isolated secondary app instance for the monitor bot, so this signed-in session never
 // mixes with the shared app used elsewhere. Same public Firebase config as the main app —
@@ -99,6 +110,14 @@ export async function GET(req: Request) {
           lastStatusCode: result.statusCode,
           lastError: result.error,
         });
+
+        const staleChecksSnap = await getDocs(
+          query(
+            collection(db, "products", productDoc.id, "checks"),
+            where("checkedAt", "<", checkedAt - CHECK_RETENTION_MS),
+          ),
+        );
+        await Promise.all(staleChecksSnap.docs.map((staleDoc) => deleteDoc(staleDoc.ref)));
 
         return { id: productDoc.id, name: product.name, ...result };
       }),

@@ -84,7 +84,9 @@ service cloud.firestore {
       match /checks/{checkId} {
         allow read: if isMember();
         allow create: if isMonitorBot();
-        allow update, delete: if false;
+        // Bot prunes its own check history older than the retention window on every run.
+        allow delete: if isMonitorBot();
+        allow update: if false;
       }
     }
 

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { addDoc, collection, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import {
   AlertTriangle,
+  CalendarClock,
   CheckCircle2,
   ChevronRight,
   ExternalLink,
@@ -30,6 +31,39 @@ function normalizeUrl(url: string) {
   return /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
 }
 
+function dateInputToTimestamp(value: string): number | null {
+  if (!value) return null;
+  const ts = new Date(`${value}T00:00:00`).getTime();
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function timestampToDateInput(ts?: number | null): string {
+  if (!ts) return "";
+  return new Date(ts).toISOString().slice(0, 10);
+}
+
+function domainExpiryStatus(expiryAt: number) {
+  const daysLeft = Math.ceil((expiryAt - Date.now()) / (24 * 60 * 60 * 1000));
+  if (daysLeft < 0) {
+    return { label: `Domain expired ${Math.abs(daysLeft)}d ago`, className: "text-red-400" };
+  }
+  if (daysLeft <= 30) {
+    return { label: `Domain expires in ${daysLeft}d`, className: "text-amber-400" };
+  }
+  return { label: `Domain expires in ${daysLeft}d`, className: "text-white/40" };
+}
+
+function DomainBadge({ product }: { product: Product }) {
+  if (!product.domainPurchased || !product.domainExpiryAt) return null;
+  const status = domainExpiryStatus(product.domainExpiryAt);
+  return (
+    <div className={`flex items-center gap-1.5 text-xs ${status.className}`}>
+      <CalendarClock className="h-3.5 w-3.5 shrink-0" />
+      <span>{status.label}</span>
+    </div>
+  );
+}
+
 export default function ProductsPage() {
   const { user } = useAuth();
   const { confirm, dialog } = useConfirmDialog();
@@ -39,6 +73,9 @@ export default function ProductsPage() {
   const [newName, setNewName] = useState("");
   const [newUrl, setNewUrl] = useState("");
   const [newDescription, setNewDescription] = useState("");
+  const [newDomainPurchased, setNewDomainPurchased] = useState(false);
+  const [newDomainPurchasedAt, setNewDomainPurchasedAt] = useState("");
+  const [newDomainExpiryAt, setNewDomainExpiryAt] = useState("");
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -55,10 +92,16 @@ export default function ProductsPage() {
         description: newDescription,
         createdBy: user?.email ?? null,
         createdAt: Date.now(),
+        domainPurchased: newDomainPurchased,
+        domainPurchasedAt: newDomainPurchased ? dateInputToTimestamp(newDomainPurchasedAt) : null,
+        domainExpiryAt: newDomainPurchased ? dateInputToTimestamp(newDomainExpiryAt) : null,
       });
       setNewName("");
       setNewUrl("");
       setNewDescription("");
+      setNewDomainPurchased(false);
+      setNewDomainPurchasedAt("");
+      setNewDomainExpiryAt("");
       setShowAdd(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to add product");
@@ -128,6 +171,37 @@ export default function ProductsPage() {
                 rows={2}
                 className="resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-orange-500/50 focus:outline-none"
               />
+              <label className="flex items-center gap-2 text-sm text-white/70">
+                <input
+                  type="checkbox"
+                  checked={newDomainPurchased}
+                  onChange={(e) => setNewDomainPurchased(e.target.checked)}
+                  className="h-4 w-4 rounded border-white/20 bg-white/5 accent-orange-500"
+                />
+                Domain purchased by us?
+              </label>
+              {newDomainPurchased && (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <label className="flex flex-col gap-1 text-xs text-white/50">
+                    Purchased on
+                    <input
+                      type="date"
+                      value={newDomainPurchasedAt}
+                      onChange={(e) => setNewDomainPurchasedAt(e.target.value)}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-orange-500/50 focus:outline-none"
+                    />
+                  </label>
+                  <label className="flex flex-col gap-1 text-xs text-white/50">
+                    Expires on
+                    <input
+                      type="date"
+                      value={newDomainExpiryAt}
+                      onChange={(e) => setNewDomainExpiryAt(e.target.value)}
+                      className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-orange-500/50 focus:outline-none"
+                    />
+                  </label>
+                </div>
+              )}
               <button
                 onClick={addProduct}
                 disabled={!newName.trim() || !newUrl.trim() || isAdding}
@@ -200,20 +274,23 @@ export default function ProductsPage() {
                     {product.description && (
                       <p className="text-sm text-white/50">{product.description}</p>
                     )}
-                    <a
-                      href={product.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      onClick={(e) => e.stopPropagation()}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.open(product.url, "_blank", "noopener,noreferrer");
+                      }}
                       className="flex w-fit items-center gap-1.5 truncate text-xs text-orange-300/80 hover:text-orange-300 hover:underline"
                     >
                       <ExternalLink className="h-3 w-3 shrink-0" />
                       {product.url.replace(/^https?:\/\//, "")}
-                    </a>
+                    </button>
                     <div className="flex items-center justify-between gap-2">
                       <MonitorStatus product={product} />
                       <ChevronRight className="h-4 w-4 shrink-0 text-white/30" />
                     </div>
+                    <DomainBadge product={product} />
                   </Link>
                 ),
               )}
@@ -273,12 +350,24 @@ function ProductEditForm({
   const [name, setName] = useState(product.name);
   const [url, setUrl] = useState(product.url);
   const [description, setDescription] = useState(product.description);
+  const [domainPurchased, setDomainPurchased] = useState(product.domainPurchased ?? false);
+  const [domainPurchasedAt, setDomainPurchasedAt] = useState(
+    timestampToDateInput(product.domainPurchasedAt),
+  );
+  const [domainExpiryAt, setDomainExpiryAt] = useState(timestampToDateInput(product.domainExpiryAt));
   const [isSaving, setIsSaving] = useState(false);
 
   async function handleSave() {
     if (!name.trim() || !url.trim() || isSaving) return;
     setIsSaving(true);
-    await onSave({ name, url: normalizeUrl(url), description });
+    await onSave({
+      name,
+      url: normalizeUrl(url),
+      description,
+      domainPurchased,
+      domainPurchasedAt: domainPurchased ? dateInputToTimestamp(domainPurchasedAt) : null,
+      domainExpiryAt: domainPurchased ? dateInputToTimestamp(domainExpiryAt) : null,
+    });
     setIsSaving(false);
   }
 
@@ -303,6 +392,37 @@ function ProductEditForm({
         rows={2}
         className="resize-none rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-white/40 focus:border-orange-500/50 focus:outline-none"
       />
+      <label className="flex items-center gap-2 text-sm text-white/70">
+        <input
+          type="checkbox"
+          checked={domainPurchased}
+          onChange={(e) => setDomainPurchased(e.target.checked)}
+          className="h-4 w-4 rounded border-white/20 bg-white/5 accent-orange-500"
+        />
+        Domain purchased by us?
+      </label>
+      {domainPurchased && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Purchased on
+            <input
+              type="date"
+              value={domainPurchasedAt}
+              onChange={(e) => setDomainPurchasedAt(e.target.value)}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-orange-500/50 focus:outline-none"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-xs text-white/50">
+            Expires on
+            <input
+              type="date"
+              value={domainExpiryAt}
+              onChange={(e) => setDomainExpiryAt(e.target.value)}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm text-white focus:border-orange-500/50 focus:outline-none"
+            />
+          </label>
+        </div>
+      )}
       <div className="flex gap-2">
         <button
           onClick={handleSave}

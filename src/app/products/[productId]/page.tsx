@@ -3,7 +3,17 @@
 import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import { AlertTriangle, CheckCircle2, Clock, ExternalLink, Eye, Globe, Timer, XCircle } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarClock,
+  CheckCircle2,
+  Clock,
+  ExternalLink,
+  Eye,
+  Globe,
+  Timer,
+  XCircle,
+} from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { NeuralVortexBackground } from "@/components/ui/neural-vortex-background";
 import { useDbDoc, useDbList } from "@/lib/use-db";
@@ -11,6 +21,7 @@ import type { Product, ProductCheck, ProductCheckStatus } from "@/lib/product-ty
 import { ResponseTimeChart } from "./response-time-chart";
 
 const CHECK_INTERVAL_MS = 3 * 60 * 60 * 1000;
+const CHECK_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
 
 function formatFullTimestamp(ts: number) {
   return new Date(ts).toLocaleString(undefined, {
@@ -24,6 +35,25 @@ function formatFullTimestamp(ts: number) {
 
 function formatShortTime(ts: number) {
   return new Date(ts).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+function formatDate(ts: number) {
+  return new Date(ts).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function domainExpiryStatus(expiryAt: number) {
+  const daysLeft = Math.ceil((expiryAt - Date.now()) / (24 * 60 * 60 * 1000));
+  if (daysLeft < 0) {
+    return { label: `Expired ${Math.abs(daysLeft)}d ago`, className: "text-red-400" };
+  }
+  if (daysLeft <= 30) {
+    return { label: `${daysLeft}d left`, className: "text-amber-400" };
+  }
+  return { label: `${daysLeft}d left`, className: "text-emerald-400" };
 }
 
 const STATUS_CONFIG: Record<
@@ -69,7 +99,9 @@ export default function ProductDetailPage() {
   const uptime24h = useMemo(() => uptimePercent(checks, 24 * 60 * 60 * 1000), [checks]);
   const uptime7d = useMemo(() => uptimePercent(checks, 7 * 24 * 60 * 60 * 1000), [checks]);
   const latest = checks[0];
+  const oldest = checks[checks.length - 1];
   const nextCheckAt = product?.lastCheckedAt ? product.lastCheckedAt + CHECK_INTERVAL_MS : null;
+  const nextCleanupAt = oldest ? oldest.checkedAt + CHECK_RETENTION_MS : null;
 
   const chartData = useMemo(
     () =>
@@ -128,6 +160,36 @@ export default function ProductDetailPage() {
               </a>
             </div>
 
+            <div className="rounded-2xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
+              <h2 className="mb-3 flex items-center gap-1.5 text-sm font-medium text-white/70">
+                <CalendarClock className="h-4 w-4" />
+                Domain
+              </h2>
+              {product.domainPurchased ? (
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                  <p className="text-white/70">
+                    Purchased{" "}
+                    <span className="text-white">
+                      {product.domainPurchasedAt ? formatDate(product.domainPurchasedAt) : "—"}
+                    </span>
+                  </p>
+                  <p className="text-white/70">
+                    Expires{" "}
+                    <span className="text-white">
+                      {product.domainExpiryAt ? formatDate(product.domainExpiryAt) : "—"}
+                    </span>
+                  </p>
+                  {product.domainExpiryAt && (
+                    <p className={domainExpiryStatus(product.domainExpiryAt).className}>
+                      {domainExpiryStatus(product.domainExpiryAt).label}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <p className="text-sm text-white/40">Domain not purchased by us.</p>
+              )}
+            </div>
+
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               <StatTile label="Uptime (24h)" value={uptime24h != null ? `${uptime24h.toFixed(1)}%` : "—"} />
               <StatTile label="Uptime (7d)" value={uptime7d != null ? `${uptime7d.toFixed(1)}%` : "—"} />
@@ -151,9 +213,17 @@ export default function ProductDetailPage() {
             )}
 
             <div className="rounded-2xl border border-white/10 bg-black/40 p-6 backdrop-blur-md">
-              <h2 className="mb-3 text-sm font-medium text-white/70">
-                Check history {checks.length > 0 && `(${checks.length})`}
-              </h2>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h2 className="text-sm font-medium text-white/70">
+                  Check history {checks.length > 0 && `(${checks.length})`}
+                </h2>
+                {nextCleanupAt && (
+                  <p className="text-xs text-white">
+                    Records older than 7 days are auto-cleaned • oldest clears{" "}
+                    {formatFullTimestamp(nextCleanupAt)}
+                  </p>
+                )}
+              </div>
 
               {checks.length === 0 ? (
                 <p className="text-sm text-white/40">No checks logged yet.</p>

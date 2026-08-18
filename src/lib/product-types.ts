@@ -11,6 +11,9 @@ export interface Product {
   lastStatus?: ProductCheckStatus | null;
   lastStatusCode?: number | null;
   lastError?: string | null;
+  domainPurchased?: boolean;
+  domainPurchasedAt?: number | null;
+  domainExpiryAt?: number | null;
 }
 
 export interface ProductCheck {
