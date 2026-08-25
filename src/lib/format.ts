@@ -6,3 +6,8 @@ export function formatINR(value: number) {
     maximumFractionDigits: 2,
   }).format(value);
 }
+
+/** Renders the real amount when `visible`, otherwise a fixed placeholder that reveals nothing. */
+export function maskedINR(value: number, visible: boolean) {
+  return visible ? formatINR(value) : "₹ ******";
+}

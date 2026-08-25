@@ -2,14 +2,25 @@
 
 import { useMemo, useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
-import { ChevronLeft, ChevronRight, Loader2, PartyPopper, Save, Target, TrendingUp } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Eye,
+  EyeOff,
+  Loader2,
+  PartyPopper,
+  Save,
+  Target,
+  TrendingUp,
+} from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { RequireFinanceAccess } from "@/components/require-finance-access";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useDbDoc, useDbList } from "@/lib/use-db";
-import { formatINR } from "@/lib/format";
+import { useNumbersVisibility } from "@/lib/use-numbers-visibility";
+import { maskedINR } from "@/lib/format";
 import type { FinanceMonth } from "@/lib/finance-types";
 import { IncomeByMonthChart } from "./income-chart";
 
@@ -46,6 +57,7 @@ interface IncomeTarget {
 
 export default function IncomeAnalyticsPage() {
   const { user } = useAuth();
+  const { visible, toggle } = useNumbersVisibility();
   const [fyStartYear, setFyStartYear] = useState(currentFYStartYear());
   const [error, setError] = useState<string | null>(null);
 
@@ -91,7 +103,21 @@ export default function IncomeAnalyticsPage() {
   return (
     <RequireFinanceAccess>
       <PageBackground>
-        <PageHeader title="Income Analytics" icon={TrendingUp} backHref="/analytics" />
+        <PageHeader
+          title="Income Analytics"
+          icon={TrendingUp}
+          backHref="/analytics"
+          actions={
+            <button
+              onClick={toggle}
+              title={visible ? "Hide numbers" : "Show numbers"}
+              className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white/80"
+            >
+              {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {visible ? "Hide" : "Show"}
+            </button>
+          }
+        />
 
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8">
@@ -102,7 +128,7 @@ export default function IncomeAnalyticsPage() {
                     <TrendingUp className="h-4 w-4 text-orange-400" />
                     Income by month
                   </h2>
-                  <p className="mt-1 text-lg font-semibold text-white">{formatINR(yearTotal)}</p>
+                  <p className="mt-1 text-lg font-semibold text-white">{maskedINR(yearTotal, visible)}</p>
                 </div>
                 <div className="flex items-center gap-1">
                   <button
@@ -123,11 +149,17 @@ export default function IncomeAnalyticsPage() {
                 </div>
               </div>
 
-              <IncomeByMonthChart
-                data={chartData}
-                year={fyLabel(fyStartYear)}
-                targetPerMonth={!achieved && !fyOver ? neededPerMonth : undefined}
-              />
+              {visible ? (
+                <IncomeByMonthChart
+                  data={chartData}
+                  year={fyLabel(fyStartYear)}
+                  targetPerMonth={!achieved && !fyOver ? neededPerMonth : undefined}
+                />
+              ) : (
+                <div className="flex h-[240px] items-center justify-center text-sm text-white/30">
+                  Numbers hidden — tap Show to reveal the chart.
+                </div>
+              )}
             </div>
 
             {error && <p className="text-sm text-red-400">{error}</p>}
@@ -138,12 +170,16 @@ export default function IncomeAnalyticsPage() {
                 Target for {fyLabel(fyStartYear)}
               </h2>
 
-              <TargetInput key={fyStartYear} value={targetAmount} onCommit={saveTarget} />
+              {visible ? (
+                <TargetInput key={fyStartYear} value={targetAmount} onCommit={saveTarget} />
+              ) : (
+                <p className="text-sm font-semibold text-white/50">{maskedINR(targetAmount, false)}</p>
+              )}
 
               {targetAmount > 0 && (
                 <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                  <TargetStat label="Target" value={formatINR(targetAmount)} />
-                  <TargetStat label="Earned" value={formatINR(yearTotal)} />
+                  <TargetStat label="Target" value={maskedINR(targetAmount, visible)} />
+                  <TargetStat label="Earned" value={maskedINR(yearTotal, visible)} />
                   {achieved ? (
                     <div className="col-span-2 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-emerald-300 sm:col-span-2">
                       <PartyPopper className="h-4 w-4 shrink-0" />
@@ -155,10 +191,10 @@ export default function IncomeAnalyticsPage() {
                     </div>
                   ) : (
                     <>
-                      <TargetStat label="Remaining" value={formatINR(remaining)} />
+                      <TargetStat label="Remaining" value={maskedINR(remaining, visible)} />
                       <TargetStat
                         label={`Needed / month (${monthsRemaining} left)`}
-                        value={formatINR(neededPerMonth)}
+                        value={maskedINR(neededPerMonth, visible)}
                       />
                     </>
                   )}
