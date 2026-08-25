@@ -8,7 +8,7 @@ import {
   signOut as firebaseSignOut,
   type User,
 } from "firebase/auth";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { addDoc, collection, doc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
 const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
@@ -96,7 +96,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   async function signInWithGoogle() {
-    await signInWithPopup(auth, new GoogleAuthProvider());
+    const result = await signInWithPopup(auth, new GoogleAuthProvider());
+    const signedInUser = result.user;
+    await addDoc(collection(db, "loginLogs"), {
+      uid: signedInUser.uid,
+      email: signedInUser.email,
+      displayName: signedInUser.displayName,
+      photoURL: signedInUser.photoURL,
+      userAgent: navigator.userAgent,
+      signedInAt: Date.now(),
+    });
   }
 
   async function signOutUser() {

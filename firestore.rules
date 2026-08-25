@@ -82,9 +82,10 @@ service cloud.firestore {
       allow update: if isMember() || (isMonitorBot() && isOnlyUpdatingMonitorFields());
 
       match /checks/{checkId} {
-        allow read: if isMember();
+        // The bot needs to read its own check history to find records older than the
+        // retention window before it can prune them.
+        allow read: if isMember() || isMonitorBot();
         allow create: if isMonitorBot();
-        // Bot prunes its own check history older than the retention window on every run.
         allow delete: if isMonitorBot();
         allow update: if false;
       }
@@ -98,6 +99,19 @@ service cloud.firestore {
         !("authorEmail" in request.resource.data) &&
         !("authorName" in request.resource.data);
       allow delete: if isMember();
+      allow update: if false;
+    }
+
+    // Append-only sign-in history. Anyone who signs in logs their own attempt (approved
+    // member or not, same as /users) so duplicate/unapproved logins are visible; only
+    // approved members can read the log, and nothing can ever be edited or removed.
+    match /loginLogs/{logId} {
+      allow read: if isMember();
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      // Any member may prune entries once they're past the 30-day retention window —
+      // never a recent one, no matter what triggers the delete.
+      allow delete: if isMember() &&
+        request.time.toMillis() - resource.data.signedInAt > 30 * 24 * 60 * 60 * 1000;
       allow update: if false;
     }
 

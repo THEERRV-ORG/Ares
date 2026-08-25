@@ -111,13 +111,19 @@ export async function GET(req: Request) {
           lastError: result.error,
         });
 
-        const staleChecksSnap = await getDocs(
-          query(
-            collection(db, "products", productDoc.id, "checks"),
-            where("checkedAt", "<", checkedAt - CHECK_RETENTION_MS),
-          ),
-        );
-        await Promise.all(staleChecksSnap.docs.map((staleDoc) => deleteDoc(staleDoc.ref)));
+        // Cleanup is best-effort housekeeping — a failure here must never take down the
+        // actual up/down check for this product.
+        try {
+          const staleChecksSnap = await getDocs(
+            query(
+              collection(db, "products", productDoc.id, "checks"),
+              where("checkedAt", "<", checkedAt - CHECK_RETENTION_MS),
+            ),
+          );
+          await Promise.all(staleChecksSnap.docs.map((staleDoc) => deleteDoc(staleDoc.ref)));
+        } catch (cleanupErr) {
+          console.error(`Cleanup failed for product ${productDoc.id}:`, cleanupErr);
+        }
 
         return { id: productDoc.id, name: product.name, ...result };
       }),
