@@ -29,8 +29,13 @@ const AuthContext = createContext<AuthContextValue | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [isMember, setIsMember] = useState(false);
-  const [hasFinanceAccess, setHasFinanceAccess] = useState(false);
+  // Tagged with the uid it was fetched for, so a stale result from a previous account
+  // can never be mistaken for the current one while a fresh check is still in flight.
+  const [memberStatus, setMemberStatus] = useState<{
+    uid: string;
+    isMember: boolean;
+    hasFinanceAccess: boolean;
+  } | null>(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
@@ -55,13 +60,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!user) return;
-    const memberRef = doc(db, "members", user.uid);
-    const unsubscribe = onSnapshot(memberRef, (snapshot) => {
-      setIsMember(snapshot.exists());
-      setHasFinanceAccess(snapshot.data()?.financeAccess === true);
-    });
+    const uid = user.uid;
+    const memberRef = doc(db, "members", uid);
+    const unsubscribe = onSnapshot(
+      memberRef,
+      (snapshot) => {
+        setMemberStatus({
+          uid,
+          isMember: snapshot.exists(),
+          hasFinanceAccess: snapshot.data()?.financeAccess === true,
+        });
+      },
+      () => {
+        // Permission denied (not a member) or any other read failure — treat as not a member.
+        setMemberStatus({ uid, isMember: false, hasFinanceAccess: false });
+      },
+    );
     return unsubscribe;
   }, [user]);
+
+  // Only trust memberStatus when it was fetched for the currently signed-in account —
+  // this is what stops a previous account's approval from leaking into a fresh sign-in
+  // while the new account's check is still in flight.
+  const isMember = Boolean(user) && memberStatus?.uid === user?.uid && (memberStatus?.isMember ?? false);
+  const hasFinanceAccess =
+    Boolean(user) && memberStatus?.uid === user?.uid && (memberStatus?.hasFinanceAccess ?? false);
 
   // Auto sign-out after a period of inactivity, so a signed-in session doesn't stay
   // open forever on a shared or unattended machine.
@@ -117,8 +140,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         loading,
-        isMember: Boolean(user) && isMember,
-        hasFinanceAccess: Boolean(user) && isMember && hasFinanceAccess,
+        isMember,
+        hasFinanceAccess,
         signInWithGoogle,
         signOutUser,
       }}
