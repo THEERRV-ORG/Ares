@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { deleteField, doc, setDoc, updateDoc } from "firebase/firestore";
-import { Wallet, Plus, X, Trash2, Loader2, RotateCcw, Save } from "lucide-react";
+import { Wallet, Plus, X, Trash2, Loader2, RotateCcw, Save, Eye, EyeOff } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { useConfirmDialog } from "@/components/confirm-dialog";
@@ -10,7 +10,8 @@ import { RequireFinanceAccess } from "@/components/require-finance-access";
 import { useAuth } from "@/lib/auth-context";
 import { db } from "@/lib/firebase";
 import { useDbList } from "@/lib/use-db";
-import { formatINR } from "@/lib/format";
+import { useNumbersVisibility } from "@/lib/use-numbers-visibility";
+import { maskedINR } from "@/lib/format";
 import type { FinanceCategory, FinanceIncomeEntry, FinanceMonth } from "@/lib/finance-types";
 
 function currentMonthKey() {
@@ -38,6 +39,7 @@ function monthTotalSpent(month: FinanceMonth) {
 export default function FinancePage() {
   const { user } = useAuth();
   const { confirm, dialog } = useConfirmDialog();
+  const { visible, toggle } = useNumbersVisibility();
 
   const [selectedMonth, setSelectedMonth] = useState(currentMonthKey());
   const [error, setError] = useState<string | null>(null);
@@ -235,10 +237,18 @@ export default function FinancePage() {
               />
               <span className="text-white/50">{monthLabel(selectedMonth)}</span>
               <button
+                onClick={toggle}
+                title={visible ? "Hide numbers" : "Show numbers"}
+                className="ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white/80"
+              >
+                {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                {visible ? "Hide" : "Show"}
+              </button>
+              <button
                 onClick={handleReset}
                 disabled={isResetting}
                 title="Reset this month"
-                className="ml-auto flex items-center gap-2 rounded-lg border border-red-500/20 px-3 py-2 text-sm text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
+                className="flex items-center gap-2 rounded-lg border border-red-500/20 px-3 py-2 text-sm text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {isResetting ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -250,10 +260,10 @@ export default function FinancePage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-              <StatTile label="Carried Over" value={carriedOver} tone="neutral" />
-              <StatTile label="Income" value={income} tone="accent" />
-              <StatTile label="Spent" value={totalSpent} tone="negative" />
-              <StatTile label="Balance" value={availableBalance} tone="highlight" />
+              <StatTile label="Carried Over" value={carriedOver} tone="neutral" visible={visible} />
+              <StatTile label="Income" value={income} tone="accent" visible={visible} />
+              <StatTile label="Spent" value={totalSpent} tone="negative" visible={visible} />
+              <StatTile label="Balance" value={availableBalance} tone="highlight" visible={visible} />
             </div>
 
             {error && <p className="text-sm text-red-400">{error}</p>}
@@ -295,7 +305,7 @@ export default function FinancePage() {
                     </span>
                   </div>
                   <span className="shrink-0 text-sm font-semibold text-sky-300">
-                    {formatINR(entry.amount)}
+                    {maskedINR(entry.amount, visible)}
                   </span>
                   <button
                     onClick={() => deleteIncomeEntry(entry.id, entry.source)}
@@ -371,11 +381,17 @@ export default function FinancePage() {
                   className="flex items-center gap-3 rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm"
                 >
                   <span className="flex-1 text-lg font-medium text-white">{cat.name}</span>
-                  <AmountInput
-                    key={`${selectedMonth}-${cat.id}-${cat.amount}`}
-                    value={cat.amount}
-                    onCommit={(v) => saveCategoryAmount(cat.id, v)}
-                  />
+                  {visible ? (
+                    <AmountInput
+                      key={`${selectedMonth}-${cat.id}-${cat.amount}`}
+                      value={cat.amount}
+                      onCommit={(v) => saveCategoryAmount(cat.id, v)}
+                    />
+                  ) : (
+                    <span className="text-sm font-semibold text-white/50">
+                      {maskedINR(cat.amount, false)}
+                    </span>
+                  )}
                   <button
                     onClick={() => deleteCategory(cat.id, cat.name)}
                     title="Delete"
@@ -442,10 +458,12 @@ function StatTile({
   label,
   value,
   tone,
+  visible,
 }: {
   label: string;
   value: number;
   tone: "neutral" | "accent" | "negative" | "highlight";
+  visible: boolean;
 }) {
   const color =
     tone === "highlight"
@@ -461,7 +479,7 @@ function StatTile({
   return (
     <div className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
       <p className="text-xs text-white/50">{label}</p>
-      <p className={`mt-1 text-xl font-semibold ${color}`}>{formatINR(value)}</p>
+      <p className={`mt-1 text-xl font-semibold ${color}`}>{maskedINR(value, visible)}</p>
     </div>
   );
 }

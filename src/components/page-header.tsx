@@ -7,9 +7,10 @@ interface PageHeaderProps {
   title: string;
   icon: LucideIcon;
   backHref?: string;
+  actions?: React.ReactNode;
 }
 
-export function PageHeader({ title, icon: Icon, backHref }: PageHeaderProps) {
+export function PageHeader({ title, icon: Icon, backHref, actions }: PageHeaderProps) {
   return (
     <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-6">
       {backHref && (
@@ -23,6 +24,7 @@ export function PageHeader({ title, icon: Icon, backHref }: PageHeaderProps) {
       )}
       <Icon className="h-5 w-5 text-orange-400" />
       <span className="text-base font-medium text-white/90">{title}</span>
+      {actions && <div className="ml-auto flex items-center gap-2">{actions}</div>}
     </header>
   );
 }
