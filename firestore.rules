@@ -102,6 +102,19 @@ service cloud.firestore {
       allow update: if false;
     }
 
+    // Append-only sign-in history. Anyone who signs in logs their own attempt (approved
+    // member or not, same as /users) so duplicate/unapproved logins are visible; only
+    // approved members can read the log, and nothing can ever be edited or removed.
+    match /loginLogs/{logId} {
+      allow read: if isMember();
+      allow create: if request.auth != null && request.resource.data.uid == request.auth.uid;
+      // Any member may prune entries once they're past the 30-day retention window —
+      // never a recent one, no matter what triggers the delete.
+      allow delete: if isMember() &&
+        request.time.toMillis() - resource.data.signedInAt > 30 * 24 * 60 * 60 * 1000;
+      allow update: if false;
+    }
+
     match /financeMonths/{monthId} {
       allow read, write: if hasFinanceAccess();
     }

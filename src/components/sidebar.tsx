@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Flame, MessageCircle, Kanban, Wallet, ChartColumn, Globe, IdCard } from "lucide-react";
+import { Flame, MessageCircle, Kanban, Wallet, ChartColumn, Globe, IdCard, History } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
 
@@ -13,6 +13,7 @@ const NAV_ITEMS = [
   { href: "/finance", label: "Finance", icon: Wallet, financeOnly: true },
   { href: "/analytics", label: "Analytics", icon: ChartColumn },
   { href: "/products", label: "Products", icon: Globe },
+  { href: "/login-log", label: "Logins", icon: History },
 ];
 
 export function Sidebar() {
