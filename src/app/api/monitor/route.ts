@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import type { ProductCheckStatus } from "@/lib/product-types";
 import { sendAlertEmail } from "@/lib/email";
+import { downAlertEmailHtml } from "@/lib/alert-email";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -117,9 +118,13 @@ export async function GET(req: Request) {
         if (wasUp && result.status !== "up") {
           sendAlertEmail(
             `\u{1F534} ${product.name ?? "A product"} is ${result.status === "down" ? "down" : "erroring"}`,
-            `<p><b>${product.name ?? "A product"}</b> (${product.url}) just went <b>${result.status}</b>.</p>` +
-              `<p>${result.error ?? ""}</p>` +
-              `<p><a href="https://ares.theerrv.com/products/${productDoc.id}">View in Ares</a></p>`,
+            downAlertEmailHtml({
+              productName: product.name ?? "A product",
+              url: product.url,
+              status: result.status === "error" ? "error" : "down",
+              error: result.error,
+              productId: productDoc.id,
+            }),
             alertRecipients,
           ).catch(() => {});
         }
