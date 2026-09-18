@@ -25,4 +25,6 @@ export interface ProductCheck {
   error: string | null;
   responseTimeMs: number | null;
   checkedAt: number;
+  /** True only when this specific check triggered a down/error alert email. */
+  emailSent?: boolean;
 }

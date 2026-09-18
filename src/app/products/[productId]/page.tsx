@@ -11,6 +11,7 @@ import {
   ExternalLink,
   Eye,
   Globe,
+  Mail,
   Timer,
   XCircle,
 } from "lucide-react";
@@ -252,6 +253,12 @@ export default function ProductDetailPage() {
                         {check.error && (
                           <span className="min-w-0 flex-1 truncate text-xs text-red-300/80">
                             {check.error}
+                          </span>
+                        )}
+                        {check.emailSent && (
+                          <span className="flex shrink-0 items-center gap-1 text-xs text-sky-300/80">
+                            <Mail className="h-3 w-3" />
+                            Alert email sent
                           </span>
                         )}
                       </div>

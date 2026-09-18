@@ -120,7 +120,8 @@ export async function GET(req: Request) {
         // Alert exactly on the transition into failure, not on every recheck while still
         // down — compares against the status from before this run overwrites it below.
         const wasUp = product.lastStatus == null || product.lastStatus === "up";
-        if (wasUp && result.status !== "up") {
+        const emailSent = wasUp && result.status !== "up";
+        if (emailSent) {
           sendAlertEmail(
             `\u{1F534} ${product.name ?? "A product"} is ${result.status === "down" ? "down" : "erroring"}`,
             downAlertEmailHtml({
@@ -140,6 +141,7 @@ export async function GET(req: Request) {
           error: result.error,
           responseTimeMs: result.responseTimeMs,
           checkedAt,
+          emailSent,
         });
 
         // Domain-expiry reminder: fires once per calendar day (not every 3-hour run),
