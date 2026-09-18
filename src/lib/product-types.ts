@@ -14,6 +14,8 @@ export interface Product {
   domainPurchased?: boolean;
   domainPurchasedAt?: number | null;
   domainExpiryAt?: number | null;
+  /** Date (YYYY-MM-DD) the last domain-expiry reminder was sent, so it fires once a day. */
+  domainExpiryAlertedDate?: string | null;
 }
 
 export interface ProductCheck {

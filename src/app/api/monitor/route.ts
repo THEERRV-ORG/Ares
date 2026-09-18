@@ -13,13 +13,14 @@ import {
 } from "firebase/firestore";
 import type { ProductCheckStatus } from "@/lib/product-types";
 import { sendAlertEmail } from "@/lib/email";
-import { downAlertEmailHtml } from "@/lib/alert-email";
+import { downAlertEmailHtml, domainExpiryEmailHtml } from "@/lib/alert-email";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const CHECK_TIMEOUT_MS = 10_000;
 const CHECK_RETENTION_MS = 7 * 24 * 60 * 60 * 1000;
+const DOMAIN_WARNING_DAYS = 10;
 
 // Isolated secondary app instance for the monitor bot, so this signed-in session never
 // mixes with the shared app used elsewhere. Same public Firebase config as the main app —
@@ -94,6 +95,7 @@ export async function GET(req: Request) {
 
   const { auth, db } = getMonitorFirebase();
   const alertRecipients = getAlertRecipients();
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   try {
     await signInWithEmailAndPassword(auth, botEmail, botPassword);
@@ -106,6 +108,9 @@ export async function GET(req: Request) {
           name?: string;
           url?: string;
           lastStatus?: ProductCheckStatus | null;
+          domainPurchased?: boolean;
+          domainExpiryAt?: number | null;
+          domainExpiryAlertedDate?: string | null;
         };
         if (!product.url) return { id: productDoc.id, name: product.name, skipped: true };
 
@@ -137,11 +142,36 @@ export async function GET(req: Request) {
           checkedAt,
         });
 
+        // Domain-expiry reminder: fires once per calendar day (not every 3-hour run),
+        // starting 10 days out, and keeps firing daily — including after actual expiry —
+        // until the expiry date is renewed to something further out than the warning window.
+        let domainExpiryAlertedDate = product.domainExpiryAlertedDate ?? null;
+        if (product.domainPurchased && product.domainExpiryAt) {
+          const daysLeft = Math.ceil((product.domainExpiryAt - checkedAt) / (24 * 60 * 60 * 1000));
+          const alreadySentToday = product.domainExpiryAlertedDate === todayStr;
+          if (daysLeft <= DOMAIN_WARNING_DAYS && !alreadySentToday) {
+            sendAlertEmail(
+              `\u{1F310} ${product.name ?? "A domain"}'s domain ${daysLeft < 0 ? "has expired" : "expires soon"}`,
+              domainExpiryEmailHtml({
+                productName: product.name ?? "A product",
+                domain: product.url,
+                daysLeft,
+                productId: productDoc.id,
+              }),
+              alertRecipients,
+            ).catch(() => {});
+            domainExpiryAlertedDate = todayStr;
+          }
+        }
+
         await updateDoc(doc(db, "products", productDoc.id), {
           lastCheckedAt: checkedAt,
           lastStatus: result.status,
           lastStatusCode: result.statusCode,
           lastError: result.error,
+          ...(domainExpiryAlertedDate !== (product.domainExpiryAlertedDate ?? null)
+            ? { domainExpiryAlertedDate }
+            : {}),
         });
 
         // Cleanup is best-effort housekeeping — a failure here must never take down the
