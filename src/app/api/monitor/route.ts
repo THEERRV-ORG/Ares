@@ -12,6 +12,7 @@ import {
   where,
 } from "firebase/firestore";
 import type { ProductCheckStatus } from "@/lib/product-types";
+import { sendAlertEmail } from "@/lib/email";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -69,6 +70,15 @@ async function checkUrl(url: string): Promise<CheckResult> {
   }
 }
 
+// Fixed, human-configured list — the bot never looks up who members are, it only ever
+// emails whoever is explicitly listed here. Keeps the bot fully blind to people/member data.
+function getAlertRecipients(): string[] {
+  return (process.env.ALERT_EMAIL_RECIPIENTS ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
 export async function GET(req: Request) {
   const secret = req.headers.get("x-monitor-secret");
   if (!secret || secret !== process.env.MONITOR_SECRET) {
@@ -82,6 +92,7 @@ export async function GET(req: Request) {
   }
 
   const { auth, db } = getMonitorFirebase();
+  const alertRecipients = getAlertRecipients();
 
   try {
     await signInWithEmailAndPassword(auth, botEmail, botPassword);
@@ -90,11 +101,28 @@ export async function GET(req: Request) {
 
     const results = await Promise.all(
       productsSnap.docs.map(async (productDoc) => {
-        const product = productDoc.data() as { name?: string; url?: string };
+        const product = productDoc.data() as {
+          name?: string;
+          url?: string;
+          lastStatus?: ProductCheckStatus | null;
+        };
         if (!product.url) return { id: productDoc.id, name: product.name, skipped: true };
 
         const result = await checkUrl(product.url);
         const checkedAt = Date.now();
+
+        // Alert exactly on the transition into failure, not on every recheck while still
+        // down — compares against the status from before this run overwrites it below.
+        const wasUp = product.lastStatus == null || product.lastStatus === "up";
+        if (wasUp && result.status !== "up") {
+          sendAlertEmail(
+            `\u{1F534} ${product.name ?? "A product"} is ${result.status === "down" ? "down" : "erroring"}`,
+            `<p><b>${product.name ?? "A product"}</b> (${product.url}) just went <b>${result.status}</b>.</p>` +
+              `<p>${result.error ?? ""}</p>` +
+              `<p><a href="https://ares.theerrv.com/products/${productDoc.id}">View in Ares</a></p>`,
+            alertRecipients,
+          ).catch(() => {});
+        }
 
         await addDoc(collection(db, "products", productDoc.id, "checks"), {
           status: result.status,
