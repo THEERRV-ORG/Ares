@@ -13,7 +13,7 @@ import {
 } from "firebase/firestore";
 import type { ProductCheckStatus } from "@/lib/product-types";
 import { sendAlertEmail } from "@/lib/email";
-import { downAlertEmailHtml, domainExpiryEmailHtml } from "@/lib/alert-email";
+import { downAlertEmailHtml, recoveredEmailHtml, domainExpiryEmailHtml } from "@/lib/alert-email";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -117,11 +117,14 @@ export async function GET(req: Request) {
         const result = await checkUrl(product.url);
         const checkedAt = Date.now();
 
-        // Alert exactly on the transition into failure, not on every recheck while still
-        // down — compares against the status from before this run overwrites it below.
-        const wasUp = product.lastStatus == null || product.lastStatus === "up";
-        const emailSent = wasUp && result.status !== "up";
-        if (emailSent) {
+        // While down/error: alert on EVERY check, so an outage can't be silently forgotten.
+        // The moment it recovers (down/error -> up): one "back up" email, then silence
+        // again as long as it stays up.
+        const wasDown = product.lastStatus != null && product.lastStatus !== "up";
+        const isDownNow = result.status !== "up";
+        let emailSent = false;
+
+        if (isDownNow) {
           sendAlertEmail(
             `\u{1F534} ${product.name ?? "A product"} is ${result.status === "down" ? "down" : "erroring"}`,
             downAlertEmailHtml({
@@ -133,6 +136,18 @@ export async function GET(req: Request) {
             }),
             alertRecipients,
           ).catch(() => {});
+          emailSent = true;
+        } else if (wasDown) {
+          sendAlertEmail(
+            `\u{2705} ${product.name ?? "A product"} is back up`,
+            recoveredEmailHtml({
+              productName: product.name ?? "A product",
+              url: product.url,
+              productId: productDoc.id,
+            }),
+            alertRecipients,
+          ).catch(() => {});
+          emailSent = true;
         }
 
         await addDoc(collection(db, "products", productDoc.id, "checks"), {
