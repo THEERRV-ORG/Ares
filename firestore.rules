@@ -21,7 +21,10 @@ service cloud.firestore {
 
     function isOnlyUpdatingMonitorFields() {
       return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(["lastCheckedAt", "lastStatus", "lastStatusCode", "lastError"]);
+        .hasOnly([
+          "lastCheckedAt", "lastStatus", "lastStatusCode", "lastError",
+          "domainExpiryAlertedDate",
+        ]);
     }
 
     // Console-managed only, like /members — the monitor bot's own UID lives here.
