@@ -37,6 +37,7 @@ service cloud.firestore {
 
     // Any approved member can see the full roster (needed to filter assignee lists down to
     // real members, not everyone who's ever attempted to sign in). Managed manually in console.
+    // The monitor bot is deliberately excluded — it has no reason to know who members are.
     match /members/{uid} {
       allow read: if isMember();
       allow write: if false;
