@@ -5,13 +5,23 @@ import { useParams } from "next/navigation";
 import { PageBackground } from "@/components/page-background";
 import { RequireWebsiteAccess } from "@/components/require-website-access";
 import { PostEditor } from "@/components/website/post-editor";
-import { samplePost } from "@/lib/website-posts-sample";
+import { usePost } from "@/lib/website-api";
 
 function EditBlog() {
   const { slug } = useParams<{ slug: string }>();
-  const post = samplePost("blog", slug);
+  const { post, error } = usePost(slug);
 
-  if (!post) {
+  if (error || post === undefined) {
+    return (
+      <PageBackground>
+        <div className="flex flex-1 items-center justify-center px-4 text-center text-white/50">
+          {error ?? "Loading from the website repo…"}
+        </div>
+      </PageBackground>
+    );
+  }
+
+  if (!post || post.kind !== "blog") {
     return (
       <PageBackground>
         <div className="flex flex-1 flex-col items-center justify-center gap-3 text-center">

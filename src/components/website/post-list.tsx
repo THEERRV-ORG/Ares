@@ -2,11 +2,11 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { BookOpenText, ChevronRight, FileText, Plus, Search, Star } from "lucide-react";
+import { BookOpenText, ChevronRight, FileText, Loader2, Plus, Search, Star } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { coverSrc } from "@/components/website/article-preview";
-import { samplePosts } from "@/lib/website-posts-sample";
+import { usePosts } from "@/lib/website-api";
 import { POST_STATUSES, POST_STATUS_STYLES, type PostKind, type PostStatus } from "@/lib/website-posts";
 
 const COPY: Record<PostKind, { title: string; noun: string; base: string; empty: string }> = {
@@ -32,9 +32,10 @@ function formatDate(value: string) {
 
 export function PostList({ kind }: { kind: PostKind }) {
   const copy = COPY[kind];
+  const { posts: all, error, reload } = usePosts();
   const posts = useMemo(
-    () => [...samplePosts(kind)].sort((a, b) => b.date.localeCompare(a.date)),
-    [kind],
+    () => (all ?? []).filter((p) => p.kind === kind).sort((a, b) => b.date.localeCompare(a.date)),
+    [all, kind],
   );
   const [statusFilter, setStatusFilter] = useState<PostStatus | "All">("All");
   const [search, setSearch] = useState("");
@@ -98,7 +99,21 @@ export function PostList({ kind }: { kind: PostKind }) {
             />
           </div>
 
-          {visible.length === 0 ? (
+          {error && (
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {error}
+              <button onClick={reload} className="shrink-0 underline opacity-80 hover:opacity-100">
+                Retry
+              </button>
+            </div>
+          )}
+
+          {all === null && !error ? (
+            <p className="flex items-center gap-2 text-sm text-white/40">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading from the website repo…
+            </p>
+          ) : visible.length === 0 ? (
             <p className="text-sm text-white/40">
               {posts.length === 0 ? copy.empty : "Nothing matches this filter."}
             </p>
@@ -123,6 +138,11 @@ export function PostList({ kind }: { kind: PostKind }) {
                     <span className="text-xs text-white/40">
                       {kind === "case-study" ? p.client : p.category}
                     </span>
+                    {p.hasDraftChanges && (
+                      <span className="rounded-full border border-amber-500/30 px-2 py-0.5 text-xs text-amber-300">
+                        Unpublished changes
+                      </span>
+                    )}
                     {p.featured && (
                       <span className="flex items-center gap-1 text-xs text-amber-300">
                         <Star className="h-3 w-3 fill-current" />

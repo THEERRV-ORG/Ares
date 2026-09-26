@@ -72,6 +72,8 @@ export interface Post {
   gallery: GalleryImage[];
   /** The client has signed off on this case study going public. Required to publish. */
   clientApproved: boolean;
+  /** Published, with newer edits saved as a draft that isn't live yet. Set by the API. */
+  hasDraftChanges?: boolean;
 }
 
 export const LIMITS = {
@@ -184,8 +186,14 @@ export function emptyPost(kind: PostKind): Post {
  * case-study extras (industry, results…) are written now so the website can start showing
  * them once its case study page is updated to read them.
  */
-export function toMarkdownFile(post: Post) {
+/** Kept in the frontmatter of files on a draft branch only; never reaches the live site. */
+export type DraftFileStatus = "draft" | "scheduled";
+
+export const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+export function toMarkdownFile(post: Post, status?: DraftFileStatus) {
   const lines: [string, string][] = [
+    ["status", status ?? ""],
     ["title", post.title],
     ["category", post.category],
     ["client", post.client],
@@ -201,6 +209,7 @@ export function toMarkdownFile(post: Post) {
     ["testimonial", post.testimonial],
     ["testimonialBy", post.testimonialBy],
     ["testimonialRole", post.testimonialRole],
+    ["clientApproved", post.kind === "case-study" && post.clientApproved ? "true" : ""],
     ["date", post.date],
     ["readTime", readTime(post.body)],
     ["featured", post.featured ? "true" : ""],
@@ -216,6 +225,96 @@ export function toMarkdownFile(post: Post) {
     .map(([key, value]) => `${key}: ${value.replace(/\s*\n\s*/g, " ")}`)
     .join("\n");
   return `---\n${front}\n---\n\n${post.body.trim()}\n`;
+}
+
+/** Same frontmatter rules as the website's loader (theerrv-final: src/data/insights.js). */
+function parseFrontmatter(raw: string) {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/.exec(raw.trim());
+  if (!match) return { meta: {} as Record<string, string>, body: raw };
+  const meta: Record<string, string> = {};
+  for (const line of match[1].split(/\r?\n/)) {
+    const at = line.indexOf(":");
+    if (at === -1) continue;
+    const key = line.slice(0, at).trim();
+    if (!key) continue;
+    meta[key] = line
+      .slice(at + 1)
+      .trim()
+      .replace(/^["']|["']$/g, "");
+  }
+  return { meta, body: match[2] };
+}
+
+function list(value: string | undefined) {
+  return (value ?? "")
+    .split(",")
+    .map((v) => v.trim())
+    .filter(Boolean);
+}
+
+function pair(value: string | undefined): [string, string] | null {
+  if (!value?.trim()) return null;
+  const at = value.indexOf("|");
+  return at === -1 ? [value.trim(), ""] : [value.slice(0, at).trim(), value.slice(at + 1).trim()];
+}
+
+/** Reads a markdown file from the website repo back into an editable post. */
+export function fromMarkdownFile(raw: string, slug: string): { post: Post; status?: DraftFileStatus } {
+  const { meta, body } = parseFrontmatter(raw);
+  const kind: PostKind = meta.category === CASE_STUDY_CATEGORY ? "case-study" : "blog";
+  const status = meta.status === "draft" || meta.status === "scheduled" ? meta.status : undefined;
+  const results: CaseStudyResult[] = [];
+  for (let i = 1; i <= 4; i++) {
+    const p = pair(meta[`result${i}`]);
+    if (p) results.push({ value: p[0], label: p[1] });
+  }
+  const gallery: GalleryImage[] = [];
+  for (let i = 1; i <= 6; i++) {
+    const p = pair(meta[`image${i}`]);
+    if (p?.[0]) gallery.push({ src: p[0], caption: p[1] });
+  }
+
+  const post: Post = {
+    ...emptyPost(kind),
+    slug,
+    status: status === "scheduled" ? "Scheduled" : status === "draft" ? "Draft" : "Published",
+    title: meta.title ?? slug,
+    category: meta.category ?? "",
+    date: meta.date ?? "",
+    featured: meta.featured === "true",
+    author: meta.author ?? "",
+    authorRole: meta.authorRole ?? "",
+    excerpt: meta.excerpt ?? "",
+    description: meta.description ?? "",
+    keywords: list(meta.keywords),
+    cover: meta.cover ?? "",
+    body: body.replace(/^\s*\n/, ""),
+    client: meta.client ?? "",
+    industry: meta.industry ?? "",
+    duration: meta.duration ?? "",
+    services: list(meta.services),
+    stack: list(meta.stack),
+    results,
+    testimonial: meta.testimonial ?? "",
+    testimonialBy: meta.testimonialBy ?? "",
+    testimonialRole: meta.testimonialRole ?? "",
+    logo: meta.logo ?? "",
+    gallery,
+    // Posts published before approval tracking existed were public already.
+    clientApproved: meta.clientApproved === "true" || (kind === "case-study" && !status),
+  };
+  return { post, status };
+}
+
+/** Every site image path (/insights/…) the post points at — cover, logo, gallery and body. */
+export function referencedImages(post: Post) {
+  const paths = [
+    post.cover,
+    post.logo,
+    ...post.gallery.map((g) => g.src),
+    ...[...post.body.matchAll(/!\[[^\]]*\]\(([^)\s]+)\)/g)].map((m) => m[1]),
+  ];
+  return [...new Set(paths.filter((p) => p.startsWith("/insights/")))];
 }
 
 /** Pages a post can link to, besides other posts. Paths match theerrv.com routes. */

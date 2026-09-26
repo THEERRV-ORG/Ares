@@ -6,7 +6,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { RequireWebsiteAccess } from "@/components/require-website-access";
-import { samplePosts } from "@/lib/website-posts-sample";
+import { usePosts } from "@/lib/website-api";
 import type { Post } from "@/lib/website-posts";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -36,7 +36,8 @@ function ContentCalendar() {
   const today = new Date();
   const [cursor, setCursor] = useState({ year: today.getFullYear(), month: today.getMonth() });
 
-  const posts = useMemo(() => [...samplePosts("blog"), ...samplePosts("case-study")], []);
+  const { posts: loaded, error } = usePosts();
+  const posts = useMemo(() => loaded ?? [], [loaded]);
   const byDay = useMemo(() => {
     const map = new Map<string, Post[]>();
     for (const p of posts) map.set(p.date, [...(map.get(p.date) ?? []), p]);
@@ -117,6 +118,13 @@ function ContentCalendar() {
                 </span>
               </div>
             </div>
+
+            {error && (
+              <p className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {error}
+              </p>
+            )}
+            {loaded === null && !error && <p className="text-sm text-white/40">Loading posts…</p>}
 
             {/* Phones: agenda list of this month's days that have something on them. */}
             <div className="flex flex-col gap-2 sm:hidden">

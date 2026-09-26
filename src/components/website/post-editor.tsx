@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Bold,
   BookOpenText,
@@ -11,6 +12,7 @@ import {
   Columns2,
   EyeOff,
   Eye,
+  ExternalLink,
   FileCode2,
   FileText,
   Heading2,
@@ -35,7 +37,7 @@ import { PageHeader } from "@/components/page-header";
 import { PageBackground } from "@/components/page-background";
 import { useConfirmDialog } from "@/components/confirm-dialog";
 import { ArticlePreview, coverSrc, type LocalImages } from "@/components/website/article-preview";
-import { samplePosts } from "@/lib/website-posts-sample";
+import { fetchDraftImage, toWebp, uploadImage, usePosts, websiteFetch } from "@/lib/website-api";
 import {
   BLOG_CATEGORIES,
   LIMITS,
@@ -46,6 +48,7 @@ import {
   wordCount,
   POST_STATUS_STYLES,
   SITE_LINKS,
+  referencedImages,
   seoChecks,
   type Post,
 } from "@/lib/website-posts";
@@ -158,7 +161,16 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
   const noun = isCaseStudy ? "case study" : "blog post";
   const listHref = isCaseStudy ? "/website/case-studies" : "/website/blog";
 
+  const router = useRouter();
   const [post, setPost] = useState<Post>(initial);
+  // The slug this post was last saved under (null until a new post is first saved), and
+  // whether a version of it is live on theerrv.com right now.
+  const [savedSlug, setSavedSlug] = useState<string | null>(isNew ? null : initial.slug);
+  const [isLive, setIsLive] = useState(!isNew && initial.status === "Published");
+  // Images picked in this session that haven't been uploaded by a save yet.
+  const [pendingUploads, setPendingUploads] = useState<Set<string>>(new Set());
+  const [previewLink, setPreviewLink] = useState<string | null>(null);
+  const { posts: allPosts } = usePosts();
   const [slugTouched, setSlugTouched] = useState(!isNew);
   const [view, setView] = useState<View>("split");
   const [schedule, setSchedule] = useState(initial.status === "Scheduled");
@@ -176,6 +188,22 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
   const logoInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const bodyImageInputId = useId();
+
+  // Images saved on a draft branch aren't on theerrv.com yet — load them through the API so
+  // the preview can show them.
+  useEffect(() => {
+    if (isNew || (initial.status === "Published" && !initial.hasDraftChanges)) return;
+    const own = referencedImages(initial).filter((p) => p.startsWith(`/insights/${initial.slug}-`));
+    let cancelled = false;
+    Promise.all(own.map(async (p) => [p, await fetchDraftImage(initial.slug, p)] as const)).then((found) => {
+      if (cancelled) return;
+      const urls = Object.fromEntries(found.filter(([, url]) => url)) as LocalImages;
+      if (Object.keys(urls).length) setLocalImages((m) => ({ ...urls, ...m }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [initial, isNew]);
 
   // Warn before leaving with unsaved edits.
   useEffect(() => {
@@ -237,6 +265,7 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
     const path = `/insights/${post.slug || "untitled"}-${name}.webp`;
     const url = URL.createObjectURL(file);
     setLocalImages((m) => ({ ...m, [path]: url }));
+    setPendingUploads((s) => new Set(s).add(path));
     return path;
   }
 
@@ -319,66 +348,119 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
     return m;
   }, [post, isCaseStudy]);
 
-  // PLACEHOLDER — saving and publishing are not wired to GitHub yet.
+  const editHref = (slug: string) => `${listHref}/${slug}`;
+
+  /** Saves to the website repo: a draft/scheduled branch, or straight to the live site. */
   async function save(mode: "draft" | "publish") {
     if (mode === "publish" && missing.length) {
       setNotice({ tone: "error", text: `Still needed before publishing: ${missing.join(", ")}.` });
       return;
     }
+    const action = mode === "draft" ? "draft" : schedule ? "schedule" : "publish";
     setBusy(mode);
     setNotice(null);
-    await new Promise((r) => setTimeout(r, 600));
-    setBusy(null);
-    setDirty(false);
-    const status = mode === "draft" ? "Draft" : schedule ? "Scheduled" : "Published";
-    setPost((p) => ({ ...p, status }));
-    setNotice({
-      tone: "info",
-      text:
-        mode === "draft"
-          ? "UI preview — nothing was saved. Once connected, drafts are kept on their own branch with a Vercel preview link."
-          : `UI preview — nothing was published. Once connected, this commits ${post.slug}.md to theerrv-final and it goes live at ${publicUrl(post.slug)} in about a minute.`,
-    });
+    setPreviewLink(null);
+    try {
+      // New images go up first (resized to WebP); the save then commits them with the post.
+      const uploads: Record<string, string> = {};
+      for (const path of referencedImages(post)) {
+        if (!pendingUploads.has(path) || !localImages[path]) continue;
+        uploads[path] = await uploadImage(await toWebp(localImages[path], path.includes("-logo") ? 600 : 1600));
+      }
+      await websiteFetch("/api/website/posts", {
+        method: "POST",
+        body: JSON.stringify({ post, action, uploads, previousSlug: savedSlug }),
+      });
+
+      const published = action === "publish";
+      setPost((p) => ({
+        ...p,
+        status: published || isLive ? "Published" : action === "schedule" ? "Scheduled" : "Draft",
+        hasDraftChanges: !published && isLive,
+      }));
+      if (published) setIsLive(true);
+      setPendingUploads(new Set());
+      setDirty(false);
+      if (savedSlug !== post.slug) {
+        setSavedSlug(post.slug);
+        // Update the address without remounting, so unsaved local image previews survive.
+        window.history.replaceState(null, "", editHref(post.slug));
+      }
+      setNotice({
+        tone: "info",
+        text: published
+          ? `Published — live at ${publicUrl(post.slug)} in about a minute, once the site rebuilds.`
+          : action === "schedule"
+            ? `Scheduled — it goes live on ${post.date}.${isLive ? " The current version stays live until then." : ""}`
+            : `Draft saved.${isLive ? " The live version is unchanged until you publish." : " It isn't on the site."}`,
+      });
+    } catch (err) {
+      setNotice({ tone: "error", text: err instanceof Error ? err.message : "Save failed." });
+    } finally {
+      setBusy(null);
+    }
   }
 
-  // PLACEHOLDER — like save(), these only simulate the GitHub commit for now.
   async function unpublish() {
+    if (!isLive) {
+      // Not on the site yet — "unpublishing" a scheduled post just cancels the schedule.
+      setSchedule(false);
+      await save("draft");
+      return;
+    }
     const ok = await confirm({
       title: `Unpublish this ${noun}?`,
       description: `It comes off theerrv.com (the link will show "not found") but stays here as a draft you can publish again.`,
       confirmLabel: "Unpublish",
     });
-    if (!ok) return;
+    if (!ok || !savedSlug) return;
     setBusy("unpublish");
     setNotice(null);
-    await new Promise((r) => setTimeout(r, 600));
-    setBusy(null);
-    setSchedule(false);
-    setPost((p) => ({ ...p, status: "Draft" }));
-    setNotice({
-      tone: "info",
-      text: `UI preview — nothing changed on the site. Once connected, this takes ${publicUrl(post.slug)} offline and keeps the post as a draft.`,
-    });
+    try {
+      await websiteFetch(`/api/website/posts/${savedSlug}/unpublish`, { method: "POST" });
+      setIsLive(false);
+      setSchedule(false);
+      setPost((p) => ({ ...p, status: "Draft", hasDraftChanges: false }));
+      setNotice({ tone: "info", text: "Unpublished — it's off the site in about a minute and kept here as a draft." });
+    } catch (err) {
+      setNotice({ tone: "error", text: err instanceof Error ? err.message : "Unpublish failed." });
+    } finally {
+      setBusy(null);
+    }
   }
 
   async function deletePost() {
+    if (!savedSlug) return;
     const ok = await confirm({
       title: `Delete this ${noun}?`,
       description: `"${post.title || "Untitled"}" and its images are removed for good${
-        post.status === "Published" ? ", and the page comes off theerrv.com" : ""
+        isLive ? ", and the page comes off theerrv.com" : ""
       }. It can only be brought back from the website repo's history.`,
-      typeToConfirm: post.slug,
+      typeToConfirm: savedSlug,
     });
     if (!ok) return;
     setBusy("delete");
     setNotice(null);
-    await new Promise((r) => setTimeout(r, 600));
-    setBusy(null);
-    setDirty(false);
-    setNotice({
-      tone: "info",
-      text: `UI preview — nothing was deleted. Once connected, this removes ${post.slug}.md from theerrv-final and returns you to the list.`,
-    });
+    try {
+      await websiteFetch(`/api/website/posts/${savedSlug}`, { method: "DELETE" });
+      setDirty(false);
+      router.push(listHref);
+    } catch (err) {
+      setNotice({ tone: "error", text: err instanceof Error ? err.message : "Delete failed." });
+      setBusy(null);
+    }
+  }
+
+  async function openSitePreview() {
+    if (!savedSlug) return;
+    setPreviewLink(null);
+    try {
+      const { url } = await websiteFetch<{ url: string | null }>(`/api/website/posts/${savedSlug}/preview`);
+      if (url) setPreviewLink(url);
+      else setNotice({ tone: "info", text: "The site preview is still building — try again in a minute." });
+    } catch (err) {
+      setNotice({ tone: "error", text: err instanceof Error ? err.message : "Couldn't get the preview." });
+    }
   }
 
   const viewButtons: { id: View; icon: typeof Pencil; label: string }[] = [
@@ -393,7 +475,7 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
     passed >= checks.length - 1 ? "text-emerald-300" : passed >= checks.length / 2 ? "text-amber-300" : "text-red-300";
 
   const linkOptions = useMemo(() => {
-    const posts = [...samplePosts("blog"), ...samplePosts("case-study")]
+    const posts = (allPosts ?? [])
       .filter((p) => p.slug !== post.slug && p.status === "Published")
       .map((p) => ({
         group: p.kind === "case-study" ? "Case studies" : "Blog posts",
@@ -404,7 +486,7 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
     return [...posts, ...SITE_LINKS].filter(
       (o) => !q || o.title.toLowerCase().includes(q) || o.path.includes(q),
     );
-  }, [linkQuery, post.slug]);
+  }, [allPosts, linkQuery, post.slug]);
 
   const googleTitle = `${post.title || "Your title"} | Theerrv Technologies`;
   const googleDesc = post.description || post.excerpt || "Add a meta description…";
@@ -413,7 +495,7 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
     <PageBackground>
       {dialog}
       <PageHeader
-        title={isNew ? `New ${noun}` : `Edit ${noun}`}
+        title={savedSlug ? `Edit ${noun}` : `New ${noun}`}
         icon={isCaseStudy ? BookOpenText : FileText}
         backHref={listHref}
       />
@@ -425,6 +507,11 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
             <span className={`rounded-full px-2 py-0.5 text-xs ${POST_STATUS_STYLES[post.status]}`}>
               {post.status}
             </span>
+            {post.hasDraftChanges && (
+              <span className="hidden rounded-full border border-amber-500/30 px-2 py-0.5 text-xs text-amber-300 sm:inline">
+                Unpublished changes
+              </span>
+            )}
             <span className="hidden text-xs text-white/40 sm:inline">
               {words} words · {readTime(post.body)}
               {dirty && " · Unsaved changes"}
@@ -433,6 +520,16 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
               <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400 sm:hidden" title="Unsaved changes" />
             )}
             <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+              {savedSlug && (!isLive || post.hasDraftChanges) && (
+                <button
+                  onClick={openSitePreview}
+                  title="Open the Vercel preview of this draft"
+                  className="flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-sm text-white/50 transition-colors hover:bg-white/10 hover:text-white/80 sm:px-2.5"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  <span className="hidden sm:inline">Site preview</span>
+                </button>
+              )}
               <button
                 onClick={() => setShowFile((v) => !v)}
                 title="See the markdown file this becomes"
@@ -460,10 +557,18 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
                 ) : (
                   <Send className="h-3.5 w-3.5" />
                 )}
-                {schedule ? "Schedule" : post.status === "Published" ? "Update" : "Publish"}
+                {schedule ? "Schedule" : isLive ? "Update" : "Publish"}
               </button>
             </div>
           </div>
+          {previewLink && (
+            <div className="border-t border-emerald-500/20 bg-emerald-500/10 px-4 py-2 text-center text-xs text-emerald-200">
+              Preview ready:{" "}
+              <a href={previewLink} target="_blank" rel="noopener noreferrer" className="underline">
+                open the draft on a preview copy of the site ↗
+              </a>
+            </div>
+          )}
           {notice && (
             <div
               className={`border-t px-4 py-2 text-center text-xs ${
@@ -1038,9 +1143,9 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
               </div>
             </SideCard>
 
-            {!isNew && (
+            {savedSlug && (
               <SideCard title="Manage">
-                {post.status === "Published" && (
+                {isLive && (
                   <Link
                     href={publicUrl(post.slug)}
                     target="_blank"
@@ -1050,7 +1155,7 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
                     View live page ↗
                   </Link>
                 )}
-                {post.status !== "Draft" && (
+                {(isLive || post.status === "Scheduled") && (
                   <button
                     onClick={unpublish}
                     disabled={busy !== null}
@@ -1064,9 +1169,9 @@ export function PostEditor({ initial, isNew }: { initial: Post; isNew: boolean }
                     <span>
                       <span className="block">Unpublish</span>
                       <span className="text-xs text-white/40">
-                        {post.status === "Scheduled"
-                          ? "Cancel the schedule and keep it as a draft."
-                          : "Take it off the site, keep it as a draft."}
+                        {isLive
+                          ? "Take it off the site, keep it as a draft."
+                          : "Cancel the schedule and keep it as a draft."}
                       </span>
                     </span>
                   </button>
