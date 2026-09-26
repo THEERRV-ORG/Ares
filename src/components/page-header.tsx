@@ -12,7 +12,8 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, icon: Icon, backHref, actions }: PageHeaderProps) {
   return (
-    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 px-6">
+    // pr-20 keeps header actions clear of the account button fixed at the top-right (UserMenu).
+    <header className="flex h-14 shrink-0 items-center gap-2 border-b border-white/10 pl-6 pr-20">
       {backHref && (
         <Link
           href={backHref}
