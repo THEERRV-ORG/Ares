@@ -1,0 +1,22 @@
+name: Website Inbox Weekly Summary
+
+on:
+  schedule:
+    - cron: "30 3 * * 1" # Mondays 03:30 UTC = 09:00 IST
+  workflow_dispatch: {} # allows manually triggering a run from the Actions tab
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/contact/digest
+        run: |
+          http_code=$(curl -s -o response.json -w "%{http_code}" \
+            -H "x-digest-secret: ${{ secrets.CONTACT_DIGEST_SECRET }}" \
+            "${{ secrets.ARES_URL }}/api/contact/digest")
+          echo "HTTP status: $http_code"
+          echo "Response body:"
+          cat response.json
+          if [ "$http_code" -ge 400 ]; then
+            exit 1
+          fi

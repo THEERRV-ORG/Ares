@@ -146,3 +146,156 @@ export function domainExpiryEmailHtml({ productName, domain, daysLeft, productId
   </div>
   `;
 }
+
+/** Contact-form text comes from anonymous visitors — escape it before it goes into HTML. */
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+interface ContactSubmissionParams {
+  fullName: string;
+  company: string;
+  email: string;
+  phone: string;
+  service: string;
+  details: string;
+  submissionId: string;
+}
+
+export function contactSubmissionEmailHtml({
+  fullName,
+  company,
+  email,
+  phone,
+  service,
+  details,
+  submissionId,
+}: ContactSubmissionParams) {
+  const rows = [
+    ["Email", email],
+    ["Phone", phone],
+    ["Company", company],
+    ["Service", service],
+  ].filter(([, value]) => value);
+
+  return `
+  <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: #f4f4f5; padding: 32px 16px;">
+    <div style="max-width: 480px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
+      <div style="background: #18181b; padding: 20px 24px;">
+        <span style="color: #f97316; font-weight: 700; font-size: 16px;">Ares</span>
+        <span style="color: #a1a1aa; font-size: 13px; margin-left: 8px;">Website Inbox</span>
+      </div>
+
+      <div style="padding: 28px 24px;">
+        <span style="display: inline-block; background: #0ea5e9; color: #ffffff; font-size: 12px; font-weight: 700; letter-spacing: 0.5px; padding: 4px 10px; border-radius: 999px; margin-bottom: 16px;">
+          NEW MESSAGE
+        </span>
+
+        <h1 style="font-size: 20px; margin: 0 0 16px; color: #18181b;">${escapeHtml(fullName)}</h1>
+
+        <table style="border-collapse: collapse; margin-bottom: 20px; font-size: 14px;">
+          ${rows
+            .map(
+              ([label, value]) => `<tr>
+                <td style="padding: 3px 16px 3px 0; color: #71717a;">${label}</td>
+                <td style="padding: 3px 0; color: #18181b; word-break: break-all;">${escapeHtml(value)}</td>
+              </tr>`,
+            )
+            .join("")}
+        </table>
+
+        <div style="background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px 14px; margin-bottom: 24px;">
+          <p style="margin: 0; font-size: 14px; color: #3f3f46; white-space: pre-wrap;">${escapeHtml(details)}</p>
+        </div>
+
+        <a href="https://ares.theerrv.com/website/inbox/${submissionId}"
+           style="display: inline-block; background: #f97316; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 10px 20px; border-radius: 8px;">
+          View in Ares →
+        </a>
+      </div>
+
+      <div style="border-top: 1px solid #e5e7eb; padding: 14px 24px;">
+        <p style="margin: 0; font-size: 12px; color: #a1a1aa;">
+          Sent from the contact form on theerrv.com
+        </p>
+      </div>
+    </div>
+  </div>
+  `;
+}
+
+interface ContactDigestParams {
+  received: number;
+  replied: number;
+  spam: number;
+  byService: [string, number][];
+  waiting: { id: string; name: string; company: string; service: string; daysOld: number }[];
+}
+
+export function contactDigestEmailHtml({ received, replied, spam, byService, waiting }: ContactDigestParams) {
+  const stat = (value: number, label: string) => `
+    <td style="width: 33%; padding: 12px; text-align: center; background: #fafafa; border: 1px solid #e5e7eb; border-radius: 8px;">
+      <div style="font-size: 22px; font-weight: 700; color: #18181b;">${value}</div>
+      <div style="font-size: 12px; color: #71717a;">${label}</div>
+    </td>`;
+
+  return `
+  <div style="font-family: -apple-system, Segoe UI, Roboto, sans-serif; background: #f4f4f5; padding: 32px 16px;">
+    <div style="max-width: 520px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; border: 1px solid #e5e7eb;">
+      <div style="background: #18181b; padding: 20px 24px;">
+        <span style="color: #f97316; font-weight: 700; font-size: 16px;">Ares</span>
+        <span style="color: #a1a1aa; font-size: 13px; margin-left: 8px;">Website Inbox · Weekly summary</span>
+      </div>
+
+      <div style="padding: 28px 24px;">
+        <table style="width: 100%; border-collapse: separate; border-spacing: 8px 0; margin: 0 -8px 24px;">
+          <tr>${stat(received, "New enquiries")}${stat(replied, "Replied")}${stat(spam, "Spam filtered")}</tr>
+        </table>
+
+        ${
+          byService.length
+            ? `<p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #18181b;">By service</p>
+               <table style="border-collapse: collapse; margin-bottom: 24px; font-size: 14px;">
+                 ${byService
+                   .map(
+                     ([service, count]) => `<tr>
+                       <td style="padding: 3px 16px 3px 0; color: #3f3f46;">${escapeHtml(service)}</td>
+                       <td style="padding: 3px 0; color: #18181b; font-weight: 600;">${count}</td>
+                     </tr>`,
+                   )
+                   .join("")}
+               </table>`
+            : ""
+        }
+
+        <p style="margin: 0 0 8px; font-size: 13px; font-weight: 600; color: #18181b;">
+          ${waiting.length ? `Still waiting on a reply (${waiting.length})` : "Nobody is waiting on a reply \u{1F389}"}
+        </p>
+        ${waiting
+          .map(
+            (w) => `<a href="https://ares.theerrv.com/website/inbox/${w.id}" style="display: block; text-decoration: none; padding: 10px 12px; margin-bottom: 6px; border: 1px solid #e5e7eb; border-radius: 8px;">
+              <span style="font-size: 14px; color: #18181b; font-weight: 600;">${escapeHtml(w.name)}</span>
+              <span style="font-size: 13px; color: #71717a;">${w.company ? ` · ${escapeHtml(w.company)}` : ""}${w.service ? ` · ${escapeHtml(w.service)}` : ""}</span>
+              <span style="float: right; font-size: 12px; color: ${w.daysOld >= 5 ? "#ef4444" : "#f59e0b"};">${w.daysOld} days</span>
+            </a>`,
+          )
+          .join("")}
+
+        <a href="https://ares.theerrv.com/website/inbox"
+           style="display: inline-block; margin-top: 16px; background: #f97316; color: #ffffff; font-size: 14px; font-weight: 600; text-decoration: none; padding: 10px 20px; border-radius: 8px;">
+          Open the inbox →
+        </a>
+      </div>
+
+      <div style="border-top: 1px solid #e5e7eb; padding: 14px 24px;">
+        <p style="margin: 0; font-size: 12px; color: #a1a1aa;">Sent every Monday by Ares — Theerrv Technologies</p>
+      </div>
+    </div>
+  </div>
+  `;
+}

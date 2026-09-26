@@ -20,6 +20,7 @@ interface AuthContextValue {
   loading: boolean;
   isMember: boolean;
   hasFinanceAccess: boolean;
+  hasWebsiteAccess: boolean;
   signInWithGoogle: () => Promise<void>;
   signOutUser: () => Promise<void>;
 }
@@ -35,6 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     uid: string;
     isMember: boolean;
     hasFinanceAccess: boolean;
+    hasWebsiteAccess: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -69,11 +71,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           uid,
           isMember: snapshot.exists(),
           hasFinanceAccess: snapshot.data()?.financeAccess === true,
+          hasWebsiteAccess: snapshot.data()?.websiteAccess === true,
         });
       },
       () => {
         // Permission denied (not a member) or any other read failure — treat as not a member.
-        setMemberStatus({ uid, isMember: false, hasFinanceAccess: false });
+        setMemberStatus({ uid, isMember: false, hasFinanceAccess: false, hasWebsiteAccess: false });
       },
     );
     return unsubscribe;
@@ -85,6 +88,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isMember = Boolean(user) && memberStatus?.uid === user?.uid && (memberStatus?.isMember ?? false);
   const hasFinanceAccess =
     Boolean(user) && memberStatus?.uid === user?.uid && (memberStatus?.hasFinanceAccess ?? false);
+  const hasWebsiteAccess =
+    Boolean(user) && memberStatus?.uid === user?.uid && (memberStatus?.hasWebsiteAccess ?? false);
 
   // Auto sign-out after a period of inactivity, so a signed-in session doesn't stay
   // open forever on a shared or unattended machine.
@@ -142,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading,
         isMember,
         hasFinanceAccess,
+        hasWebsiteAccess,
         signInWithGoogle,
         signOutUser,
       }}

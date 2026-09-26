@@ -1,0 +1,22 @@
+name: Publish Scheduled Website Posts
+
+on:
+  schedule:
+    - cron: "35 18 * * *" # 18:35 UTC = 00:05 IST — just after midnight in India
+  workflow_dispatch: {} # allows manually triggering a run from the Actions tab
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/website/publish-scheduled
+        run: |
+          http_code=$(curl -s -o response.json -w "%{http_code}" \
+            -H "x-cron-secret: ${{ secrets.WEBSITE_CRON_SECRET }}" \
+            "${{ secrets.ARES_URL }}/api/website/publish-scheduled")
+          echo "HTTP status: $http_code"
+          echo "Response body:"
+          cat response.json
+          if [ "$http_code" -ge 400 ] || [ "$http_code" = "207" ]; then
+            exit 1
+          fi
