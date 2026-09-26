@@ -12,6 +12,42 @@ service cloud.firestore {
         get(/databases/$(database)/documents/members/$(request.auth.uid)).data.financeAccess == true;
     }
 
+    function hasWebsiteAccess() {
+      return isMember() &&
+        get(/databases/$(database)/documents/members/$(request.auth.uid)).data.websiteAccess == true;
+    }
+
+    // Scoped bot account for the website contact form (/api/contact). Like the monitor bot,
+    // it is NOT in /members. It can create contact submissions, and read them for the weekly
+    // summary email (/api/contact/digest) — nothing else in the app.
+    function isContactBot() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/contactBots/$(request.auth.uid));
+    }
+
+    function isValidContactSubmission() {
+      let d = request.resource.data;
+      return d.keys().hasOnly([
+          "fullName", "company", "email", "phone", "service", "details",
+          "status", "assignee", "createdAt", "updatedAt", "updatedBy", "spamReasons",
+        ]) &&
+        d.fullName is string && d.fullName.size() > 0 && d.fullName.size() <= 100 &&
+        d.company is string && d.company.size() <= 150 &&
+        d.email is string && d.email.size() > 0 && d.email.size() <= 200 &&
+        d.phone is string && d.phone.size() <= 30 &&
+        d.service is string && d.service.size() <= 100 &&
+        d.details is string && d.details.size() > 0 && d.details.size() <= 5000 &&
+        d.status in ["New", "Spam"] && d.spamReasons is list && d.spamReasons.size() <= 10 &&
+        d.assignee == null && d.createdAt is int &&
+        d.updatedAt == null && d.updatedBy == null;
+    }
+
+    function isOnlyUpdatingSubmissionTriage() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(["status", "assignee", "updatedAt", "updatedBy"]) &&
+        request.resource.data.status in ["New", "Read", "Replied", "Closed", "Spam"];
+    }
+
     // Scoped bot account for the uptime monitor. Deliberately NOT in /members — it has
     // no general access to the app, only the narrow allowances granted explicitly below.
     function isMonitorBot() {
@@ -117,6 +153,23 @@ service cloud.firestore {
       allow delete: if isMember() &&
         request.time.toMillis() - resource.data.signedInAt > 30 * 24 * 60 * 60 * 1000;
       allow update: if false;
+    }
+
+    match /contactBots/{uid} {
+      allow read, write: if false;
+    }
+
+    // Website contact form messages. Contact details are personal data, so only members
+    // with websiteAccess can see them; the message itself is never editable.
+    match /contactSubmissions/{submissionId} {
+      allow create: if isContactBot() && isValidContactSubmission();
+      allow read: if hasWebsiteAccess() || isContactBot();
+      allow delete: if hasWebsiteAccess();
+      allow update: if hasWebsiteAccess() && isOnlyUpdatingSubmissionTriage();
+
+      match /discussions/{discussionId} {
+        allow read, write: if hasWebsiteAccess();
+      }
     }
 
     match /financeMonths/{monthId} {
